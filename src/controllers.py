@@ -635,6 +635,8 @@ class ChessClaimController(QApplication):
 
     # Games without clock times: report an illegal move that stays this long
     ILLEGAL_MOVE_GRACE_NO_CLOCK = 60
+    # Completed illegal move (clock pressed / next move) must stay this long
+    ILLEGAL_MOVE_CONFIRM_SECONDS = 30
 
     def _process_illegal_moves(self, illegal_move_games) -> None:
         """
@@ -657,15 +659,20 @@ class ChessClaimController(QApplication):
             seen.add(game_idx)
             game = self.games[game_idx]
             valid_moves = len(list(game.mainline_moves()))
-            key = (self.make_game_id(game), valid_moves)
+            key = (self.make_game_id(game), valid_moves, error_msg)
             completed, has_clock = illegal_move_status(raw_game, valid_moves) if raw_game else (True, False)
             first_seen = pending.get(key, now)
-            if completed or (not has_clock and now - first_seen >= self.ILLEGAL_MOVE_GRACE_NO_CLOCK):
+            age = now - first_seen
+            # DGT boards sometimes misread a move even after the clock press and
+            # LiveChess corrects it seconds later - it must also persist
+            if (completed and age >= self.ILLEGAL_MOVE_CONFIRM_SECONDS) or \
+                    (not has_clock and age >= self.ILLEGAL_MOVE_GRACE_NO_CLOCK):
                 self._add_illegal_move_claim(game_idx, error_msg)
             else:
                 if key not in pending:
-                    logger.info("illegal move on board %s not completed yet (no clock press): %s",
-                                ClaimsManager.get_board_number(game), error_msg)
+                    logger.info("illegal move on board %s waiting for confirmation (%s): %s",
+                                ClaimsManager.get_board_number(game),
+                                "clock pressed" if completed else "no clock press", error_msg)
                 still_pending[key] = first_seen
         self._pending_illegal = still_pending
 
