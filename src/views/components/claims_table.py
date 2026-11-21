@@ -148,6 +148,8 @@ class ClaimsTable(QWidget):
         # Set column headers - added "Ack" column at the end (after Move)
         labels = [tr(x) for x in ["#", "Timestamp", "Type", "Board", "Players", "Move", "Ack"]]
         self.model.setHorizontalHeaderLabels(labels)
+        # Newest first (new rows are inserted at the top)
+        self.table.header().setSortIndicator(0, Qt.SortOrder.DescendingOrder)
         self.table.setModel(self.model)
 
         # Row click → open Board Viewer on DOUBLE CLICK (not single click)
@@ -229,15 +231,16 @@ class ClaimsTable(QWidget):
             standard_item = self._create_standard_item(item, idx)
             row.append(standard_item)
 
-        self.model.appendRow(row)
+        # Newest entries on top
+        self.model.insertRow(0, row)
 
         # Colour the whole row by priority
-        new_row = self.model.rowCount() - 1
+        new_row = 0
         self.model.item(new_row, 0).setData(ROW_PRIORITY.get(entry.type, "reminder"), PRIORITY_ROLE)
         self._paint_row(new_row)
 
         # Store game and move index for Board Viewer navigation
-        first_item = self.model.item(self.model.rowCount() - 1, 0)
+        first_item = self.model.item(0, 0)
         first_item.setData({
             "game_index": entry.game_index,
             "move_index": entry.move_counter,
@@ -250,11 +253,12 @@ class ClaimsTable(QWidget):
         
         # No resize - let Stretch mode handle Move column automatically
         # Backup calls resizeColumnToContents but it may cause issues with Fixed columns
-        self.table.scrollToBottom()
+        self.table.scrollToTop()
 
         # Desktop notification (named source first)
         source = self.controller.source_name_of(entry.game_id)
-        self._notify(f"[{source}] {claim_type}" if source else claim_type, players, move)
+        headline = f"#{board_number} {claim_type}" if board_number and board_number != "-" else claim_type
+        self._notify(f"[{source}] {headline}" if source else headline, players, move)
         self.table.clearSelection()
 
     def show_context_menu(self, pos):
@@ -345,7 +349,7 @@ class ClaimsTable(QWidget):
                 self.claims_store.mark_cleared(game_index)
             self.model.removeRow(row)
         for i in range(self.model.rowCount()):
-            self.model.item(i, 0).setText(str(i + 1))
+            self.model.item(i, 0).setData(self.model.rowCount() - i, Qt.ItemDataRole.DisplayRole)
         self.table.clearSelection()
 
     def _confirm_remove_round(self, rnd: str, rows) -> None:
@@ -405,6 +409,9 @@ class ClaimsTable(QWidget):
             Configured QStandardItem
         """
         standard_item = QStandardItem(item)
+        if idx == 0 and str(item).isdigit():
+            # numeric, so sorting by '#' is 1, 2, ... 10 and not 1, 10, 2
+            standard_item.setData(int(item), Qt.ItemDataRole.DisplayRole)
         standard_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Set slightly larger font size for all items to give more vertical space (prevents height changes with emoji)
@@ -523,7 +530,7 @@ class ClaimsTable(QWidget):
 
         # Re-number remaining rows
         for i in range(model.rowCount()):
-            model.item(i, 0).setText(str(i + 1))
+            model.item(i, 0).setData(model.rowCount() - i, Qt.ItemDataRole.DisplayRole)
 
     def clear(self) -> None:
         """Clear all rows from the claims table."""
@@ -584,7 +591,7 @@ class ClaimsTable(QWidget):
         
         # Re-number remaining rows
         for i in range(self.model.rowCount()):
-            self.model.item(i, 0).setText(str(i + 1))
+            self.model.item(i, 0).setData(self.model.rowCount() - i, Qt.ItemDataRole.DisplayRole)
         
         # Clear selection after removing
         self.table.clearSelection()
@@ -622,7 +629,7 @@ class ClaimsTable(QWidget):
 
         # Re-number remaining rows
         for i in range(self.model.rowCount()):
-            self.model.item(i, 0).setText(str(i + 1))
+            self.model.item(i, 0).setData(self.model.rowCount() - i, Qt.ItemDataRole.DisplayRole)
         
         # Clear selection
         self.table.clearSelection()
