@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.helpers import resource_path, Status
+from src.i18n import tr
 
 
 class AddSourceDialog(QDialog):
@@ -30,7 +31,7 @@ class AddSourceDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(620)
         self.resize(620, 100)
-        self.setWindowTitle("PGN Sources")
+        self.setWindowTitle(tr("PGN Sources"))
 
         # Remove the "?" help button from the title bar
         self.setWindowFlags(self.windowFlags() ^ Qt.WindowType.WindowContextHelpButtonHint)
@@ -136,7 +137,7 @@ class SourceHBox(QWidget):
 
         # Source type selector
         self.select_source = QComboBox()
-        self.select_source.addItems(["Web(url)", "Local", "LiveChessCloud"])
+        self.select_source.addItems([tr("Web(url)"), tr("Local"), "LiveChessCloud"])
         self.select_source.currentIndexChanged.connect(self.select_change)
 
         # Input field for URL or file path
@@ -146,7 +147,7 @@ class SourceHBox(QWidget):
         self.source_value.setMinimumWidth(200)
 
         # File chooser button (only visible for local file option)
-        self.choose_button = QPushButton("Choose File")
+        self.choose_button = QPushButton(tr("Choose File"))
         self.choose_button.clicked.connect(self.on_choose_button_clicked)
         self.choose_button.setHidden(True)
 
@@ -156,7 +157,7 @@ class SourceHBox(QWidget):
         self.round_spinbox.setMaximum(9999)
         self.round_spinbox.setValue(1)  # Default to round 1
         self.round_spinbox.setHidden(True)
-        round_label = QLabel("Round:")
+        round_label = QLabel(tr("Round:"))
         round_label.setHidden(True)
         self.round_label = round_label
 
@@ -297,7 +298,7 @@ class SourceHBox(QWidget):
     def on_choose_button_clicked(self) -> None:
         """Open a file dialog for selecting a local PGN file."""
         filename, _ = QFileDialog.getOpenFileName(
-            self, "Select File", "", "PGN Files (*.pgn)"
+            self, tr("Select File"), "", tr("PGN Files (*.pgn)")
         )
         if filename:
             self.source_value.setText(filename)
@@ -317,7 +318,7 @@ class BottomBox(QWidget):
         self.controller = controller
 
         # Buttons
-        apply_button = QPushButton("Apply")
+        apply_button = QPushButton(tr("Apply"))
         self.ok_button = QPushButton("OK")
 
         apply_button.setObjectName("apply")

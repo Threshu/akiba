@@ -28,6 +28,7 @@ from .pgn_helpers import (
 from src.models.spi_worker import SPIWorker
 from src.views.dialogs.spi_dialog import SPIDialog
 from src.views.dialogs.spi_progress_dialog import SPIProgressDialog
+from src.i18n import tr
 
 class BoardViewerWindow(QMainWindow):
     """
@@ -40,7 +41,7 @@ class BoardViewerWindow(QMainWindow):
 
     def __init__(self, pgn_path: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Akiba - Board Viewer")
+        self.setWindowTitle(tr("Akiba - Board Viewer"))
         self.resize(1100, 580)
 
         self.pgn_path = pgn_path
@@ -166,12 +167,12 @@ class BoardViewerWindow(QMainWindow):
         left_layout = QVBoxLayout()
 
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Search by player name or by board number ...")
+        self.search_box.setPlaceholderText(tr("Search by player name or by board number ..."))
         self.search_box.textChanged.connect(self._apply_filter)
         left_layout.addWidget(self.search_box)
 
         # Checkbox: show only active games
-        self.chk_active_only = QCheckBox("Show only active games")
+        self.chk_active_only = QCheckBox(tr("Show only active games"))
         self.chk_active_only.stateChanged.connect(self._apply_filter)
         left_layout.addWidget(self.chk_active_only)
 
@@ -222,12 +223,12 @@ class BoardViewerWindow(QMainWindow):
         self.board_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # PLAYER NAME LABELS (medium size)
-        self.black_name_label = QLabel("Black: --:--:--")
+        self.black_name_label = QLabel(tr("Black: --:--:--"))
         self.black_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.black_name_label.setStyleSheet("font-size: 15px; font-weight: bold;")
         self.black_name_label.setFixedHeight(24)
 
-        self.white_name_label = QLabel("White: --:--:--")
+        self.white_name_label = QLabel(tr("White: --:--:--"))
         self.white_name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.white_name_label.setStyleSheet("font-size: 15px; font-weight: bold;")
         self.white_name_label.setFixedHeight(24)
@@ -288,7 +289,7 @@ class BoardViewerWindow(QMainWindow):
         try:
             self.games = load_games_from_file(self.pgn_path)
         except Exception as e:
-            self.game_list.addItem(f"Error loading PGN: {e}")
+            self.game_list.addItem(tr("Error loading PGN: {error}").format(error=e))
 
         self.filtered_games = list(self.games)
 
@@ -606,8 +607,8 @@ class BoardViewerWindow(QMainWindow):
     def update_board(self) -> None:
         if self.current_board is None:
             self.board_label.clear()
-            self.white_name_label.setText("White: --:--:--")
-            self.black_name_label.setText("Black: --:--:--")
+            self.white_name_label.setText(tr("White: --:--:--"))
+            self.black_name_label.setText(tr("Black: --:--:--"))
             return
 
         board = self.current_board.copy()
@@ -779,24 +780,24 @@ class BoardViewerWindow(QMainWindow):
         # --- WHITE MOVE ---
         if is_white_move:
             if emt is not None:
-                self.white_name_label.setText(f"<u>{white_time_format}</u> - Last move ({emt})")
+                self.white_name_label.setText(f"<u>{white_time_format}</u> - " + tr("Last move ({time})").format(time=emt))
             else:
                 self.white_name_label.setText(f"<u>{white_time_format}</u>")
 
             if emt_black is not None:
-                self.black_name_label.setText(f"{black_time_format} - Last move ({emt_black})")
+                self.black_name_label.setText(f"{black_time_format} - " + tr("Last move ({time})").format(time=emt_black))
             else:
                 self.black_name_label.setText(black_time_format)
 
         # --- BLACK MOVE ---
         else:
             if emt is not None:
-                self.black_name_label.setText(f"<u>{black_time_format}</u> - Last move ({emt})")
+                self.black_name_label.setText(f"<u>{black_time_format}</u> - " + tr("Last move ({time})").format(time=emt))
             else:
                 self.black_name_label.setText(f"<u>{black_time_format}</u>")
 
             if emt_white is not None:
-                self.white_name_label.setText(f"{white_time_format} - Last move ({emt_white})")
+                self.white_name_label.setText(f"{white_time_format} - " + tr("Last move ({time})").format(time=emt_white))
             else:
                 self.white_name_label.setText(white_time_format)
 

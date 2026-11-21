@@ -106,8 +106,9 @@ def _default_types() -> Dict[str, PushTypeSettings]:
     types = {}
     for code, (_, priority) in EVENT_TYPES.items():
         if code == ERR_PGN:
+            from src.i18n import tr
             types[code] = PushTypeSettings(priority=priority, title_template=ERR_PGN_TITLE,
-                                           body_template=ERR_PGN_BODY)
+                                           body_template=tr(ERR_PGN_BODY))
         else:
             types[code] = PushTypeSettings(priority=priority)
     return types
@@ -203,7 +204,8 @@ def build_message(settings: PushSettings, code: str, board: str = "",
 
 def render_message(code: str, type_settings: PushTypeSettings, board: str = "",
                    white: str = "", black: str = "", move: str = "") -> PushMessage:
-    label = EVENT_TYPES.get(code, (code, 0))[0]
+    from src.i18n import tr
+    label = tr(EVENT_TYPES.get(code, (code, 0))[0])
     players = f"{white} - {black}" if black else white
     values = {
         "code": code, "type": label, "board": board or "",

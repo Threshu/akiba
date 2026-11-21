@@ -15,6 +15,7 @@ from src.push.base import (
     PushSettings, build_message, split_players,
 )
 from src.push.pushover import PushoverProvider
+from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class PushNotifier:
                   on_done: Callable[[str], None]) -> None:
         """Send a sample message using (possibly unsaved) settings."""
         if not settings.configured:
-            on_done("Enter the Pushover user key and API token first.")
+            on_done(tr("Enter the Pushover user key and API token first."))
             return
         test = PushSettings.from_dict(settings.to_dict())
         test.types[code].enabled = True

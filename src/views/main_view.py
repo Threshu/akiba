@@ -31,6 +31,7 @@ from src.views.components.button_box import ButtonBox
 from src.views.components.claims_table import ClaimsTable
 from src.views.components.menu_builder import MenuBarBuilder
 from src.views.dialogs.about_dialog import AboutDialog
+from src.i18n import tr
 
 
 def sources_warning() -> None:
@@ -39,9 +40,9 @@ def sources_warning() -> None:
     
     warning_dialog = QMessageBox()
     warning_dialog.setIcon(QMessageBox.Icon.Warning)
-    warning_dialog.setWindowTitle("Warning")
-    warning_dialog.setText("PGN File(s) Not Found")
-    warning_dialog.setInformativeText("Please enter at least one valid PGN source.")
+    warning_dialog.setWindowTitle(tr("Warning"))
+    warning_dialog.setText(tr("PGN File(s) Not Found"))
+    warning_dialog.setInformativeText(tr("Please enter at least one valid PGN source."))
     warning_dialog.exec()
 
 class ChessClaimView(QMainWindow):
@@ -132,7 +133,7 @@ class ChessClaimView(QMainWindow):
         self.scan_image = QLabel()
         
         # Engine status labels (for mismatched result analysis) - hidden by default
-        self.engine_label = QLabel("Engine")
+        self.engine_label = QLabel(tr("Engine"))
         self.engine_image = QLabel()
         self.engine_label.setVisible(False)
         self.engine_image.setVisible(False)
@@ -141,7 +142,7 @@ class ChessClaimView(QMainWindow):
         self.spinner = QMovie(resource_path("spinner.gif"))
 
         # Clear Resolved button (for status bar)
-        self.clear_resolved_button = QPushButton("Clear Resolved")
+        self.clear_resolved_button = QPushButton(tr("Clear Resolved"))
         self.clear_resolved_button.setObjectName("clearResolved")
 
         # Status bar
@@ -168,11 +169,11 @@ class ChessClaimView(QMainWindow):
         """Setup menu widgets for settings."""
         
         # Notification system toggle
-        self.notifications_enabled_action = QCheckBox("Enable Windows/Mac notifications")
+        self.notifications_enabled_action = QCheckBox(tr("Enable Windows/Mac notifications"))
         self.notifications_enabled_action.setChecked(True)
         
         # Scoresheet reminder
-        self.scoresheet_action = QCheckBox("Scoresheet change after move")
+        self.scoresheet_action = QCheckBox(tr("Scoresheet change after move"))
         self.scoresheet_action.setChecked(False)
         self.scoresheet_spin = QSpinBox()
         self.scoresheet_spin.setRange(1, 200)
@@ -180,7 +181,7 @@ class ChessClaimView(QMainWindow):
         self.scoresheet_spin.setEnabled(False)
 
         # Time control reminder
-        self.timecontrol_action = QCheckBox("Time control after move")
+        self.timecontrol_action = QCheckBox(tr("Time control after move"))
         self.timecontrol_action.setChecked(False)
         self.timecontrol_spin = QSpinBox()
         self.timecontrol_spin.setRange(1, 200)
@@ -188,19 +189,19 @@ class ChessClaimView(QMainWindow):
         self.timecontrol_spin.setEnabled(False)
 
         # Possible Threefold Reminder
-        self.possible_threefold_action = QCheckBox("Possible threefold (2 fold)")
+        self.possible_threefold_action = QCheckBox(tr("Possible threefold (2 fold)"))
         self.possible_threefold_action.setChecked(False)
 
         # Possible 50-move Reminder
-        self.possible_fiftymove_action = QCheckBox("Possible 50-move (45 moves)")
+        self.possible_fiftymove_action = QCheckBox(tr("Possible 50-move (45 moves)"))
         self.possible_fiftymove_action.setChecked(False)
 
         # Possible Incorrect Result Reminder
-        self.possible_incorrect_result_action = QCheckBox("Possible incorrect result")
+        self.possible_incorrect_result_action = QCheckBox(tr("Possible incorrect result"))
         self.possible_incorrect_result_action.setChecked(False)
 
         # Low Time Reminder
-        self.low_time_action = QCheckBox("Low time - if less second than")
+        self.low_time_action = QCheckBox(tr("Low time - if less second than"))
         self.low_time_action.setChecked(False)
         self.low_time_spin = QSpinBox()
         self.low_time_spin.setRange(1, 600)
@@ -208,15 +209,15 @@ class ChessClaimView(QMainWindow):
         self.low_time_spin.setEnabled(False)
 
         # Flag Fall Reminder
-        self.flag_fall_action = QCheckBox("Flag fall (00:00:00)")
+        self.flag_fall_action = QCheckBox(tr("Flag fall (00:00:00)"))
         self.flag_fall_action.setChecked(False)
 
         # Illegal Move Reminder
-        self.illegal_move_action = QCheckBox("First illegal move")
+        self.illegal_move_action = QCheckBox(tr("First illegal move"))
         self.illegal_move_action.setChecked(False)
 
         # Draw agreement (Sofia rule)
-        self.sofia_action = QCheckBox("Draw before move completed (Sofia rule)")
+        self.sofia_action = QCheckBox(tr("Draw before move completed (Sofia rule)"))
         self.sofia_action.setChecked(False)
         self.sofia_spin = QSpinBox()
         self.sofia_spin.setRange(1, 200)
@@ -230,7 +231,7 @@ class ChessClaimView(QMainWindow):
         container_layout.setSpacing(0)
 
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText("Filter by player, board or claim...")
+        self.filter_edit.setPlaceholderText(tr("Filter by player, board or claim..."))
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.textChanged.connect(self.claims_table_widget.set_filter)
         container_layout.addWidget(self.filter_edit)
@@ -380,7 +381,7 @@ class ChessClaimView(QMainWindow):
 
     def create_status_bar(self) -> None:
         """Create and configure the status bar."""
-        sources_button = QPushButton("Add Sources")
+        sources_button = QPushButton(tr("Add Sources"))
         sources_button.setObjectName("sources")
         sources_button.clicked.connect(self.controller.on_sources_button_clicked)
         
@@ -469,7 +470,7 @@ class ChessClaimView(QMainWindow):
             valid_sources = []
 
         count = len(valid_sources)
-        self.source_label.setText(f"Sources ({count})")
+        self.source_label.setText(tr("Sources ({count})").format(count=count))
 
         try:
             text = ""
@@ -487,7 +488,7 @@ class ChessClaimView(QMainWindow):
     def set_download_status(self, status: Status) -> None:
         """Update the download status in the status bar."""
         timestamp = str(datetime.now().strftime("%H:%M:%S"))
-        self.download_label.setText(f"{timestamp} Download:")
+        self.download_label.setText(tr("{timestamp} Download:").format(timestamp=timestamp))
 
         self.set_pixmap(self.download_image, status)
 
@@ -498,7 +499,7 @@ class ChessClaimView(QMainWindow):
     def set_scan_status(self, status: Status) -> None:
         """Update the scan status in the status bar."""
         timestamp = str(datetime.now().strftime("%H:%M:%S"))
-        self.scan_label.setText(f"Scan ({timestamp}):")
+        self.scan_label.setText(tr("Scan ({timestamp}):").format(timestamp=timestamp))
         self.set_pixmap(self.scan_image, status)
 
         if status == Status.ACTIVE:
@@ -511,11 +512,11 @@ class ChessClaimView(QMainWindow):
     def change_scan_button_text(self, status: Status) -> None:
         """Change the scan button text depending on the scan status."""
         if status == Status.ACTIVE:
-            self.button_box.scan_button.setText("Scanning PGN...")
+            self.button_box.scan_button.setText(tr("Scanning PGN..."))
         elif status == Status.STOP:
-            self.button_box.scan_button.setText("Start Scan")
+            self.button_box.scan_button.setText(tr("Start Scan"))
         elif status == Status.WAIT:
-            self.button_box.scan_button.setText("Please Wait")
+            self.button_box.scan_button.setText(tr("Please Wait"))
 
     def set_pixmap(self, image: QLabel, status: Status) -> None:
         """Set the appropriate status icon."""
@@ -575,7 +576,7 @@ class ChessClaimView(QMainWindow):
                         transformMode=Qt.TransformationMode.SmoothTransformation,
                     )
                 )
-                self.engine_label.setText(f"Engine ({last_analysis_time})")
+                self.engine_label.setText(tr("Engine ({time})").format(time=last_analysis_time))
             else:
                 self.engine_image.setPixmap(
                     self.ok_pixmap.scaled(
@@ -584,7 +585,7 @@ class ChessClaimView(QMainWindow):
                         transformMode=Qt.TransformationMode.SmoothTransformation,
                     )
                 )
-                self.engine_label.setText("Engine (waiting)")
+                self.engine_label.setText(tr("Engine (waiting)"))
         else:
             # Hide only the tick icon, keep label with last timestamp visible
             self.engine_image.setVisible(False)
@@ -596,9 +597,9 @@ class ChessClaimView(QMainWindow):
         try:
             if self.controller.scan_worker and self.controller.scan_worker.isRunning():
                 exit_dialog = QMessageBox()
-                exit_dialog.setWindowTitle("Warning")
-                exit_dialog.setText("Scanning in Progress")
-                exit_dialog.setInformativeText("Do you want to quit?")
+                exit_dialog.setWindowTitle(tr("Warning"))
+                exit_dialog.setText(tr("Scanning in Progress"))
+                exit_dialog.setInformativeText(tr("Do you want to quit?"))
                 exit_dialog.setIcon(QMessageBox.Icon.Warning)
                 exit_dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
                 exit_dialog.setDefaultButton(QMessageBox.StandardButton.Cancel)
@@ -633,12 +634,17 @@ class ChessClaimView(QMainWindow):
         from src.helpers import resource_path
         
         # Get the path to USER_DOCUMENTATION.md using resource_path (works for both dev and frozen mode)
+        from src.i18n import current_language
         manual_path = resource_path("USER_DOCUMENTATION.md")
+        if current_language() == "pl":
+            polish_manual = resource_path("DOKUMENTACJA_UZYTKOWNIKA.md")
+            if os.path.exists(polish_manual):
+                manual_path = polish_manual
         
         if not os.path.exists(manual_path):
             QMessageBox.warning(
                 self,
-                "User Manual Not Found",
+                tr("User Manual Not Found"),
                 "The user documentation file could not be found."
             )
             return
@@ -650,8 +656,8 @@ class ChessClaimView(QMainWindow):
         except Exception as e:
             QMessageBox.warning(
                 self,
-                "Error Reading Manual",
-                f"Could not read the user documentation:\n\n{str(e)}"
+                tr("Error Reading Manual"),
+                tr("Could not read the user documentation:") + f"\n\n{str(e)}"
             )
             return
         
@@ -660,7 +666,7 @@ class ChessClaimView(QMainWindow):
         from PyQt6.QtCore import Qt
         
         self.manual_window = QMainWindow()
-        self.manual_window.setWindowTitle("Akiba - User Manual")
+        self.manual_window.setWindowTitle(tr("Akiba - User Manual"))
         self.manual_window.setMinimumSize(800, 600)
         
         # Create central widget and layout

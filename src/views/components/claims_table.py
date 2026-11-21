@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 
 from src.helpers import resource_path
 from src.models.events import ClaimType
+from src.i18n import tr
 
 if TYPE_CHECKING:
     from src.controllers import ChessClaimController
@@ -110,7 +111,7 @@ class ClaimsTable(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         
         # Set column headers - added "Ack" column at the end (after Move)
-        labels = ["#", "Timestamp", "Type", "Board", "Players", "Move", "Ack"]
+        labels = [tr(x) for x in ["#", "Timestamp", "Type", "Board", "Players", "Move", "Ack"]]
         self.model.setHorizontalHeaderLabels(labels)
         self.table.setModel(self.model)
 
@@ -164,7 +165,7 @@ class ClaimsTable(QWidget):
         if entry.cleared:
             return
             
-        claim_type = entry.type.value
+        claim_type = tr(entry.type.value)
         board_number = entry.board_number
         players = entry.players
         move = entry.move
@@ -236,9 +237,9 @@ class ClaimsTable(QWidget):
         has_ack = ack_item.text() == "✅"
         
         if has_ack:
-            action = context_menu.addAction("Unacknowledge")
+            action = context_menu.addAction(tr("Unacknowledge"))
         else:
-            action = context_menu.addAction("Acknowledge")
+            action = context_menu.addAction(tr("Acknowledge"))
         
         action.triggered.connect(lambda: self.toggle_ack(row))
         
@@ -295,7 +296,7 @@ class ClaimsTable(QWidget):
             standard_item.setFont(font)
 
         # Red color for strong claims (automatic game-ending results)
-        if idx == 2 and item in ["5-fold repetition", "75-move rule", "Stalemate", "Checkmate", "Dead position"]:
+        if idx == 2 and item in [tr(x) for x in ("5-fold repetition", "75-move rule", "Stalemate", "Checkmate", "Dead position")]:
             brush = standard_item.foreground()
             brush.setColor(QColor("red"))
             standard_item.setForeground(brush)

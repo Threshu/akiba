@@ -3,6 +3,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (QMenuBar, QCheckBox, QSpinBox, QWidget, QHBoxLayout, QWidgetAction, QSizePolicy)
 
 from src.models.events import ClaimType
+from src.i18n import tr
 
 
 class MenuBarBuilder:
@@ -19,7 +20,7 @@ class MenuBarBuilder:
 
     def _build_claims_menu(self, menu_bar) -> None:
         """Build Claims menu with on/off switches for repetition and move-count claims."""
-        claims_menu = menu_bar.addMenu('&Claims')
+        claims_menu = menu_bar.addMenu(tr('&Claims'))
         self.view.claim_type_actions = {}
 
         for claim_type, label in (
@@ -31,7 +32,7 @@ class MenuBarBuilder:
             widget = QWidget()
             layout = QHBoxLayout()
             layout.setContentsMargins(10, 2, 10, 2)
-            checkbox = QCheckBox(label)
+            checkbox = QCheckBox(tr(label))
             checkbox.setChecked(True)
             layout.addWidget(checkbox)
             spacer = QWidget()
@@ -42,8 +43,8 @@ class MenuBarBuilder:
                 self.view.fifty_moves_spin = QSpinBox()
                 self.view.fifty_moves_spin.setRange(50, 74)
                 self.view.fifty_moves_spin.setValue(50)
-                self.view.fifty_moves_spin.setSuffix(' moves')
-                self.view.fifty_moves_spin.setFixedSize(90, 24)
+                self.view.fifty_moves_spin.setSuffix(tr(' moves'))
+                self.view.fifty_moves_spin.setFixedSize(115, 24)
                 layout.addWidget(self.view.fifty_moves_spin)
             widget.setLayout(layout)
             widget_action = QWidgetAction(self.view)
@@ -53,13 +54,13 @@ class MenuBarBuilder:
 
     def _build_alerts_menu(self, menu_bar) -> None:
         """Build Alerts menu with Sofia rule, flag fall, illegal move, and incorrect result."""
-        alerts_menu = menu_bar.addMenu('&Alerts')
+        alerts_menu = menu_bar.addMenu(tr('&Alerts'))
 
         # Sofia rule (Draw agreement)
         widget_sofia = QWidget()
         layout_sofia = QHBoxLayout()
         layout_sofia.setContentsMargins(10, 2, 10, 2)
-        self.view.sofia_action = QCheckBox('Draw before move completed (Sofia rule)')
+        self.view.sofia_action = QCheckBox(tr('Draw before move completed (Sofia rule)'))
         self.view.sofia_action.setChecked(False)
         layout_sofia.addWidget(self.view.sofia_action)
         self.view.sofia_spin.setFixedSize(60, 24)
@@ -74,7 +75,7 @@ class MenuBarBuilder:
         widget_flagfall = QWidget()
         layout_flagfall = QHBoxLayout()
         layout_flagfall.setContentsMargins(10, 2, 10, 2)
-        self.view.flag_fall_action = QCheckBox('Flag fall (00:00:00)')
+        self.view.flag_fall_action = QCheckBox(tr('Flag fall (00:00:00)'))
         self.view.flag_fall_action.setChecked(False)
         layout_flagfall.addWidget(self.view.flag_fall_action)
         spacer = QWidget()
@@ -89,7 +90,7 @@ class MenuBarBuilder:
         widget_illegalmove = QWidget()
         layout_illegalmove = QHBoxLayout()
         layout_illegalmove.setContentsMargins(10, 2, 10, 2)
-        self.view.illegal_move_action = QCheckBox('First illegal move')
+        self.view.illegal_move_action = QCheckBox(tr('First illegal move'))
         self.view.illegal_move_action.setChecked(False)
         layout_illegalmove.addWidget(self.view.illegal_move_action)
         spacer = QWidget()
@@ -104,7 +105,7 @@ class MenuBarBuilder:
         widget_incorrectresult = QWidget()
         layout_incorrectresult = QHBoxLayout()
         layout_incorrectresult.setContentsMargins(10, 2, 10, 2)
-        self.view.possible_incorrect_result_action = QCheckBox('Possible incorrect result')
+        self.view.possible_incorrect_result_action = QCheckBox(tr('Possible incorrect result'))
         self.view.possible_incorrect_result_action.setChecked(False)
         layout_incorrectresult.addWidget(self.view.possible_incorrect_result_action)
         spacer = QWidget()
@@ -117,14 +118,14 @@ class MenuBarBuilder:
 
     def _build_reminders_menu(self, menu_bar) -> None:
         """Build Reminders menu with low time, 50-move, threefold, scoresheet, and time control."""
-        reminders_menu = menu_bar.addMenu('&Reminders')
+        reminders_menu = menu_bar.addMenu(tr('&Reminders'))
 
 
         # Low time reminder
         widget_lowtime = QWidget()
         layout_lowtime = QHBoxLayout()
         layout_lowtime.setContentsMargins(10, 2, 10, 2)
-        self.view.low_time_action = QCheckBox('Low time - if less second than')
+        self.view.low_time_action = QCheckBox(tr('Low time - if less second than'))
         self.view.low_time_action.setChecked(False)
         layout_lowtime.addWidget(self.view.low_time_action)
         self.view.low_time_spin.setFixedSize(60, 24)
@@ -139,7 +140,7 @@ class MenuBarBuilder:
         widget_fiftymove = QWidget()
         layout_fiftymove = QHBoxLayout()
         layout_fiftymove.setContentsMargins(10, 2, 10, 2)
-        self.view.possible_fiftymove_action = QCheckBox('Possible 50-move (45 moves)')
+        self.view.possible_fiftymove_action = QCheckBox(tr('Possible 50-move (45 moves)'))
         self.view.possible_fiftymove_action.setChecked(False)
         layout_fiftymove.addWidget(self.view.possible_fiftymove_action)
         spacer = QWidget()
@@ -154,7 +155,7 @@ class MenuBarBuilder:
         widget_threefold = QWidget()
         layout_threefold = QHBoxLayout()
         layout_threefold.setContentsMargins(10, 2, 10, 2)
-        self.view.possible_threefold_action = QCheckBox('Possible threefold (2 fold)')
+        self.view.possible_threefold_action = QCheckBox(tr('Possible threefold (2 fold)'))
         self.view.possible_threefold_action.setChecked(False)
         layout_threefold.addWidget(self.view.possible_threefold_action)
         spacer = QWidget()
@@ -169,7 +170,7 @@ class MenuBarBuilder:
         widget_scoresheet = QWidget()
         layout_scoresheet = QHBoxLayout()
         layout_scoresheet.setContentsMargins(10, 2, 10, 2)
-        self.view.scoresheet_action = QCheckBox('Scoresheet change after move')
+        self.view.scoresheet_action = QCheckBox(tr('Scoresheet change after move'))
         self.view.scoresheet_action.setChecked(False)
         layout_scoresheet.addWidget(self.view.scoresheet_action)
         self.view.scoresheet_spin.setFixedSize(60, 24)
@@ -184,7 +185,7 @@ class MenuBarBuilder:
         widget_timecontrol = QWidget()
         layout_timecontrol = QHBoxLayout()
         layout_timecontrol.setContentsMargins(10, 2, 10, 2)
-        self.view.timecontrol_action = QCheckBox('Time control after move')
+        self.view.timecontrol_action = QCheckBox(tr('Time control after move'))
         self.view.timecontrol_action.setChecked(False)
         layout_timecontrol.addWidget(self.view.timecontrol_action)
         self.view.timecontrol_spin.setFixedSize(60, 24)
@@ -197,13 +198,13 @@ class MenuBarBuilder:
 
     def _build_notifications_menu(self, menu_bar) -> None:
         """Build Notifications menu with enable notifications toggle."""
-        notifications_menu = menu_bar.addMenu('&Notifications')
+        notifications_menu = menu_bar.addMenu(tr('&Notifications'))
 
         # Enable notifications
         widget_notifications = QWidget()
         layout_notifications = QHBoxLayout()
         layout_notifications.setContentsMargins(10, 2, 10, 2)
-        self.view.notifications_enabled_action = QCheckBox('Enable Windows/Mac notifications')
+        self.view.notifications_enabled_action = QCheckBox(tr('Enable Windows/Mac notifications'))
         self.view.notifications_enabled_action.setChecked(True)
         layout_notifications.addWidget(self.view.notifications_enabled_action)
         spacer = QWidget()
@@ -216,25 +217,37 @@ class MenuBarBuilder:
 
         # Phone / Apple Watch push notifications
         notifications_menu.addSeparator()
-        push_action = QAction('Phone notifications (Pushover)...', self.view)
+        push_action = QAction(tr('Phone notifications (Pushover)...'), self.view)
         push_action.triggered.connect(self.view.controller.on_push_settings_clicked)
         notifications_menu.addAction(push_action)
 
     def _build_help_menu(self, menu_bar) -> None:
         """Build Help menu with About and User Manual."""
-        options_menu = menu_bar.addMenu('&Help')
+        options_menu = menu_bar.addMenu(tr('&Help'))
 
         # About
-        about_action = QAction('About', self.view)
+        about_action = QAction(tr('About'), self.view)
         options_menu.addAction(about_action)
         about_action.triggered.connect(self.view.controller.on_about_clicked)
 
         # User Manual
-        user_manual_action = QAction('User Manual', self.view)
+        user_manual_action = QAction(tr('User Manual'), self.view)
         options_menu.addAction(user_manual_action)
         user_manual_action.triggered.connect(self.view.controller.on_user_manual_clicked)
 
+        # Language (applied after restart)
+        from PyQt6.QtGui import QActionGroup
+        from src.i18n import LANGUAGES, current_language
+        language_menu = options_menu.addMenu(tr('Language'))
+        group = QActionGroup(self.view)
+        for code, name in LANGUAGES.items():
+            action = QAction(name, self.view, checkable=True)
+            action.setChecked(code == current_language())
+            action.triggered.connect(lambda _=False, c=code: self.view.controller.on_language_selected(c))
+            group.addAction(action)
+            language_menu.addAction(action)
+
         # Log file (for bug reports)
-        log_action = QAction('Open Log Folder', self.view)
+        log_action = QAction(tr('Open Log Folder'), self.view)
         options_menu.addAction(log_action)
         log_action.triggered.connect(self.view.controller.on_open_log_folder_clicked)

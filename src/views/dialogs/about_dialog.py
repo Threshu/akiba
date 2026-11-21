@@ -5,6 +5,7 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, QSize
 
 from src.helpers import resource_path
+from src.i18n import tr
 
 
 class AboutDialog(QDialog):
@@ -14,7 +15,7 @@ class AboutDialog(QDialog):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Akiba - About")
+        self.setWindowTitle(tr("Akiba - About"))
         # Remove the context help button from title bar
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
 
@@ -38,7 +39,7 @@ class AboutDialog(QDialog):
         logo.setPixmap(logo_pixmap.scaled(QSize(128, 128), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        appname = QLabel("<b>Akiba</b> - Monitoring System for Chess Arbiters")
+        appname = QLabel(tr("<b>Akiba</b> - Monitoring System for Chess Arbiters"))
         appname.setObjectName("appname")
         appname.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appname.setTextFormat(Qt.TextFormat.RichText)
@@ -47,7 +48,7 @@ class AboutDialog(QDialog):
         version_and_copyright.setObjectName("version")
         version_and_copyright.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        copyright_info = QLabel("Based on Chess Claim Tool by Athanasios Serntedakis 2019 ©")
+        copyright_info = QLabel(tr("Based on Chess Claim Tool by Athanasios Serntedakis 2019 ©"))
         copyright_info.setObjectName("copyright")
         copyright_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

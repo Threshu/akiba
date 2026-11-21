@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PyQt6.QtWidgets import QWidget, QPushButton, QHBoxLayout
+from src.i18n import tr
 
 
 class ButtonBox(QWidget):
@@ -18,13 +19,13 @@ class ButtonBox(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self.scan_button = QPushButton("Start Scan")
+        self.scan_button = QPushButton(tr("Start Scan"))
         self.scan_button.setObjectName("Scan")
 
-        self.stop_button = QPushButton("Stop Scan")
+        self.stop_button = QPushButton(tr("Stop Scan"))
         self.stop_button.setObjectName("Stop")
 
-        self.board_button = QPushButton("Board Viewer")
+        self.board_button = QPushButton(tr("Board Viewer"))
         self.board_button.setObjectName("BoardViewer")
 
         layout = QHBoxLayout()

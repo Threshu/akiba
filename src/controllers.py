@@ -55,6 +55,11 @@ class ChessClaimController(QApplication):
     def __init__(self) -> None:
         super().__init__(sys.argv)
 
+        # UI language must be known before any window is built
+        from src.i18n import init_language, install_qt_translations
+        self.language = init_language()
+        install_qt_translations(self)
+
         # NEW: Central claims store - SINGLE SOURCE OF TRUTH (must be before view!)
         self.claims_store = ClaimsStore()
         
@@ -247,6 +252,7 @@ class ChessClaimController(QApplication):
             "sofia_enabled": self.sofia_rule_enabled,
             "sofia_move": self.sofia_rule_threshold,
             "push": self.push.settings.to_dict(),
+            "language": self.language,
         }
         for claim_type, key in self.CLAIM_OPTION_KEYS.items():
             data[key] = self.claims_manager.is_enabled(claim_type)
@@ -317,6 +323,16 @@ class ChessClaimController(QApplication):
     def on_user_manual_clicked(self) -> None:
         """Open the user documentation file."""
         self.view.open_user_manual()
+
+    def on_language_selected(self, language: str) -> None:
+        """Store the UI language; it is applied on the next start."""
+        from PyQt6.QtWidgets import QMessageBox
+        from src.i18n import tr
+        if language == self.language:
+            return
+        self.language = language
+        self.save_options()
+        QMessageBox.information(self.view, "Akiba", tr("Restart Akiba to change the language."))
 
     def on_open_log_folder_clicked(self) -> None:
         """Open the folder containing akiba.log in the file manager."""
