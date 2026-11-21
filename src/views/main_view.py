@@ -428,6 +428,15 @@ class ChessClaimView(QMainWindow):
         # Add stretchable space to push everything left
         status_layout.addStretch()
         
+        # Verify results against ChessManager
+        self.verify_results_button = QPushButton(tr("Verify results"))
+        self.verify_results_button.setObjectName("clearResolved")  # same look as Clear Resolved
+        self.verify_results_button.setMinimumWidth(125)
+        self.verify_results_button.setToolTip(tr("Compare transmission results with ChessManager"))
+        self.verify_results_button.clicked.connect(self.controller.on_verify_results_clicked)
+        status_layout.addWidget(self.verify_results_button)
+        status_layout.addSpacing(8)
+
         # Add clear resolved button on the right side (same width as Add Sources)
         self.clear_resolved_button.setMinimumWidth(125)
         self.clear_resolved_button.clicked.connect(self.controller.on_clear_resolved_clicked)

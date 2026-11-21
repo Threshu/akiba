@@ -16,6 +16,7 @@ class MenuBarBuilder:
         self._build_alerts_menu(menu_bar)
         self._build_reminders_menu(menu_bar)
         self._build_notifications_menu(menu_bar)
+        self._build_results_menu(menu_bar)
         self._build_help_menu(menu_bar)
 
     def _build_claims_menu(self, menu_bar) -> None:
@@ -220,6 +221,17 @@ class MenuBarBuilder:
         push_action = QAction(tr('Phone notifications (Pushover)...'), self.view)
         push_action.triggered.connect(self.view.controller.on_push_settings_clicked)
         notifications_menu.addAction(push_action)
+
+    def _build_results_menu(self, menu_bar) -> None:
+        """Result verification against ChessManager."""
+        results_menu = menu_bar.addMenu(tr('&Results'))
+        verify_action = QAction(tr('Verify results with ChessManager'), self.view)
+        verify_action.setShortcut('Ctrl+R')
+        verify_action.triggered.connect(self.view.controller.on_verify_results_clicked)
+        results_menu.addAction(verify_action)
+        sources_action = QAction(tr('ChessManager tournaments...'), self.view)
+        sources_action.triggered.connect(self.view.controller.on_chessmanager_sources_clicked)
+        results_menu.addAction(sources_action)
 
     def _build_help_menu(self, menu_bar) -> None:
         """Build Help menu with About and User Manual."""

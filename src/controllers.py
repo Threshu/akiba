@@ -124,6 +124,10 @@ class ChessClaimController(QApplication):
         # Phone / Apple Watch push notifications (Pushover)
         self.push = PushNotifier()
 
+        # ChessManager tournaments used to verify transmission results
+        self.chessmanager_urls: List[str] = []
+        self.verify_worker = None
+
         # Game list and mapping
         self.games: List = []
         self.game_id_to_index: Dict[str, int] = {}
@@ -191,6 +195,7 @@ class ChessClaimController(QApplication):
 
             # Phone / Apple Watch push notifications
             self.push.settings = PushSettings.from_dict(data.get("push"))
+            self.chessmanager_urls = [str(u) for u in data.get("chessmanager_urls", []) if u]
 
             # Claim types reported (3-fold, 5-fold, 50-move, 75-move)
             for claim_type, key in self.CLAIM_OPTION_KEYS.items():
@@ -253,6 +258,7 @@ class ChessClaimController(QApplication):
             "sofia_move": self.sofia_rule_threshold,
             "push": self.push.settings.to_dict(),
             "language": self.language,
+            "chessmanager_urls": self.chessmanager_urls,
         }
         for claim_type, key in self.CLAIM_OPTION_KEYS.items():
             data[key] = self.claims_manager.is_enabled(claim_type)
@@ -323,6 +329,63 @@ class ChessClaimController(QApplication):
     def on_user_manual_clicked(self) -> None:
         """Open the user documentation file."""
         self.view.open_user_manual()
+
+    # -------------------------------------------------------------------------
+    # RESULT VERIFICATION (ChessManager)
+    # -------------------------------------------------------------------------
+
+    def on_chessmanager_sources_clicked(self) -> bool:
+        """Edit the ChessManager tournament links. Returns True when saved."""
+        from src.views.dialogs.verify_dialog import ChessManagerSourcesDialog
+        dialog = ChessManagerSourcesDialog(self.chessmanager_urls, self.view)
+        if dialog.exec():
+            self.chessmanager_urls = dialog.urls()
+            self.save_options()
+            return True
+        return False
+
+    def on_verify_results_clicked(self) -> None:
+        """Compare PGN results with ChessManager in the background, then show the report."""
+        from PyQt6.QtWidgets import QMessageBox
+        from src.i18n import tr
+        from src.verification.worker import VerifyResultsWorker
+
+        if self.verify_worker is not None and self.verify_worker.isRunning():
+            return
+        if not self.chessmanager_urls and not self.on_chessmanager_sources_clicked():
+            return
+        if not self.chessmanager_urls:
+            return
+        if not self.games:
+            self.on_pgn_updated()
+        if not self.games:
+            QMessageBox.information(self.view, "Akiba", tr("No games loaded - start the scan first."))
+            return
+
+        games = list(self.games)
+        button = self.view.verify_results_button
+        button.setEnabled(False)
+        button.setText(tr("Verifying..."))
+        self.verify_worker = VerifyResultsWorker(games, self.chessmanager_urls)
+        self.verify_worker.finished_signal.connect(
+            lambda report: self._show_verification(report, games))
+        self.verify_worker.start()
+
+    def _show_verification(self, report, games) -> None:
+        from src.i18n import tr
+        from src.views.dialogs.verify_dialog import VerificationResultsDialog
+        button = self.view.verify_results_button
+        button.setEnabled(True)
+        button.setText(tr("Verify results"))
+
+        def open_game(index: int) -> None:
+            game = games[index]
+            plies = len(list(game.mainline_moves()))
+            self.open_viewer_for_claim(index, plies, self.make_game_id(game))
+
+        self.verification_dialog = VerificationResultsDialog(report, games, open_game, self.view)
+        self.verification_dialog.show()
+        self.verification_dialog.raise_()
 
     def on_language_selected(self, language: str) -> None:
         """Store the UI language; it is applied on the next start."""
