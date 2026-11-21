@@ -11,7 +11,7 @@ from typing import Callable, Optional
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 
 from src.push.base import (
-    CLAIM_TYPE_TO_CODE, ERR_PGN, PushError, PushMessage, PushProvider,
+    CLAIM_TYPE_TO_CODE, ERR_PGN, SAMPLE_VALUES, PushError, PushMessage, PushProvider,
     PushSettings, build_message, split_players,
 )
 from src.push.pushover import PushoverProvider
@@ -109,7 +109,7 @@ class PushNotifier:
             return
         test = PushSettings.from_dict(settings.to_dict())
         test.types[code].enabled = True
-        message = build_message(test, code, "6", "Nowak Jan", "Kowalski Piotr", "34. Nf3")
+        message = build_message(test, code, **({} if code == ERR_PGN else SAMPLE_VALUES))
         self._pool.start(_SendTask(make_provider(test), message, on_done))
 
     def reset(self) -> None:

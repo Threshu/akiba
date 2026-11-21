@@ -77,9 +77,21 @@ CLAIM_TYPE_TO_CODE: Dict[ClaimType, str] = {
 
 DEFAULT_TITLE = "{code} #{board}"
 DEFAULT_BODY = "{white} - {black}\n{move}"
+ERR_PGN_TITLE = "{type}"
 ERR_PGN_BODY = "PGN download failed. Check the source URL / network."
 
-TEMPLATE_HELP = "{code} {type} {board} {white} {black} {players} {move}"
+# Placeholders offered in the template editor: (key, label shown to the arbiter)
+TEMPLATE_FIELDS = (
+    ("code", "Code (3FR)"),
+    ("type", "Event name"),
+    ("board", "Board"),
+    ("white", "White"),
+    ("black", "Black"),
+    ("players", "White - Black"),
+    ("move", "Move"),
+)
+
+SAMPLE_VALUES = {"board": "6", "white": "Nowak Jan", "black": "Kowalski Piotr", "move": "34. Nf3"}
 
 
 @dataclass
@@ -93,8 +105,11 @@ class PushTypeSettings:
 def _default_types() -> Dict[str, PushTypeSettings]:
     types = {}
     for code, (_, priority) in EVENT_TYPES.items():
-        body = ERR_PGN_BODY if code == ERR_PGN else DEFAULT_BODY
-        types[code] = PushTypeSettings(priority=priority, body_template=body)
+        if code == ERR_PGN:
+            types[code] = PushTypeSettings(priority=priority, title_template=ERR_PGN_TITLE,
+                                           body_template=ERR_PGN_BODY)
+        else:
+            types[code] = PushTypeSettings(priority=priority)
     return types
 
 
@@ -183,7 +198,11 @@ def build_message(settings: PushSettings, code: str, board: str = "",
     type_settings = settings.types.get(code)
     if type_settings is None or not type_settings.enabled:
         return None
+    return render_message(code, type_settings, board, white, black, move)
 
+
+def render_message(code: str, type_settings: PushTypeSettings, board: str = "",
+                   white: str = "", black: str = "", move: str = "") -> PushMessage:
     label = EVENT_TYPES.get(code, (code, 0))[0]
     players = f"{white} - {black}" if black else white
     values = {
