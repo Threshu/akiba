@@ -211,6 +211,9 @@ PL = {
     # --- sources dialog ---
     "PGN Sources": "Źródła PGN",
     "Choose File": "Wybierz plik",
+    "Name (optional)": "Nazwa (opcjonalnie)",
+    "Shown at the start of notifications, e.g. MP U20 Girls":
+        "Pokazywana na początku powiadomień, np. MP K20",
     "Select File": "Wybierz plik",
     "PGN Files (*.pgn)": "Pliki PGN (*.pgn)",
     "Round:": "Runda:",

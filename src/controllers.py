@@ -438,6 +438,40 @@ class ChessClaimController(QApplication):
             logger.info("following %d players, events: %s", len(self.follow.players),
                         ", ".join(sorted(self.follow.events)))
 
+    def _update_game_sources(self) -> None:
+        """game id -> source name, read from the per-source PGN files (headers only)."""
+        import chess.pgn
+        names = self.sources_dialog.source_names_by_file() if self.sources_dialog else {}
+        mapping = {}
+        cache = self.__dict__.setdefault("_source_file_cache", {})
+        for path, name in names.items():
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                continue
+            cached = cache.get(path)
+            if cached and cached[0] == mtime:
+                ids = cached[1]
+            else:
+                ids = []
+                try:
+                    with open(path, encoding="utf-8", errors="replace") as f:
+                        while True:
+                            headers = chess.pgn.read_headers(f)
+                            if headers is None:
+                                break
+                            ids.append("|".join(headers.get(k, "") for k in
+                                                ("Event", "Site", "Date", "Round", "White", "Black")))
+                except OSError:
+                    pass
+                cache[path] = (mtime, ids)
+            for gid in ids:
+                mapping[gid] = name
+        self.game_sources = mapping
+
+    def source_name_of(self, game_id: str) -> str:
+        return getattr(self, "game_sources", {}).get(game_id or "", "")
+
     def _notify_followed_game_ends(self) -> None:
         from src.follow import GAME_END
         from src.i18n import tr
@@ -452,13 +486,16 @@ class ChessClaimController(QApplication):
             result = game.headers.get("Result", "*")
             board = ClaimsManager.get_board_number(game)
             logger.info("followed player finished: #%s %s - %s %s", board, white, black, result)
-            self.push.notify_game_end(board, white, black, result)
+            self.push.notify_game_end(board, white, black, result,
+                                      source=self.source_name_of(self.make_game_id(game)))
             if self.notifications_enabled:
                 from src.notifications.windows_toast import show_toast
                 from src.helpers import resource_path
                 toaster = getattr(self.view.claims_table_widget, "notification", None)
                 if sys.platform == "win32":
-                    show_toast(toaster, "\u2605 " + tr("Game finished") + f" #{board}: {result}",
+                    prefix = self.source_name_of(self.make_game_id(game))
+                    show_toast(toaster, (f"[{prefix}] " if prefix else "") + "\u2605 " + tr("Game finished")
+                               + f" #{board}: {result}",
                                f"{white} - {black}", resource_path("notification_icon.png"))
 
     def on_language_selected(self, language: str) -> None:
@@ -668,6 +705,9 @@ class ChessClaimController(QApplication):
         # Reload viewer if open
         if self.board_viewer is not None:
             self.board_viewer.reload_pgn(pgn_path)
+
+        # Which source each game comes from (for named sources)
+        self._update_game_sources()
 
         # Games of followed players that just finished
         self._notify_followed_game_ends()
@@ -1322,12 +1362,13 @@ class SourceDialogController:
                 for entry in data:
                     option = entry["option"]
                     value = entry["value"]
+                    name = str(entry.get("name") or "")
                     # For LiveChessCloud sources, restore round number too (default to 1 if not specified)
                     if option == 2 and "round" in entry:
                         round_num = entry["round"] if entry.get("round", 1) > 0 else 1
-                        self.view.add_source(option, value, round_num)
+                        self.view.add_source(option, value, round_num, name=name)
                     else:
-                        self.view.add_source(option, value)
+                        self.view.add_source(option, value, name=name)
         except Exception as e:
             self.view.add_default_source()
 
@@ -1483,6 +1524,8 @@ class SourceDialogController:
                 "option": option,
                 "value": value
             }
+            if source.get_name():
+                entry["name"] = source.get_name()
             
             # Add round number for LiveChessCloud sources
             if source.has_livechess():
@@ -1501,6 +1544,24 @@ class SourceDialogController:
                 json.dump(data, file, indent=4)
         except Exception as e:
             pass  # Silent failure for now
+
+    def source_names_by_file(self) -> Dict[str, str]:
+        """PGN file path -> source name, for sources that have a name."""
+        names = {}
+        for hbox in self.view.sources:
+            name = hbox.get_name()
+            if not name:
+                continue
+            value = hbox.get_value()
+            if hbox.has_url() and value in self.downloads:
+                names[self.downloads[value]] = name
+            elif hbox.has_local():
+                names[value] = name
+            elif hbox.has_livechess():
+                for source in self.livechess_sources:
+                    if source.url == value:
+                        names[os.path.join(self.app_path, source.get_filename())] = name
+        return names
 
     def add_valid_url(self, url: str, download_id: int) -> None:
         filepath = os.path.join(self.app_path, f"games{download_id}.pgn")

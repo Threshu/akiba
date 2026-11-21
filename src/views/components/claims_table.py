@@ -252,8 +252,9 @@ class ClaimsTable(QWidget):
         # Backup calls resizeColumnToContents but it may cause issues with Fixed columns
         self.table.scrollToBottom()
 
-        # Desktop notification
-        self._notify(claim_type, players, move)
+        # Desktop notification (named source first)
+        source = self.controller.source_name_of(entry.game_id)
+        self._notify(f"[{source}] {claim_type}" if source else claim_type, players, move)
         self.table.clearSelection()
 
     def show_context_menu(self, pos):

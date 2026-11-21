@@ -66,7 +66,7 @@ class AddSourceDialog(QDialog):
         """Triggered when the user clicks the '+' button."""
         self.add_default_source()
 
-    def add_source(self, option: int, value: str, round_num: int = 1) -> None:
+    def add_source(self, option: int, value: str, round_num: int = 1, name: str = "") -> None:
         """
         Add a new source row to the dialog.
 
@@ -79,6 +79,7 @@ class AddSourceDialog(QDialog):
         source_hbox = SourceHBox(self)
         source_hbox.set_source(option)
         source_hbox.set_value(value)
+        source_hbox.set_name(name)
         
         # Set round number if this is a LiveChessCloud source and value was provided
         if option == 2 and value:
@@ -135,6 +136,12 @@ class SourceHBox(QWidget):
         super().__init__()
         self.dialog = dialog
 
+        # Optional source name, shown at the start of notifications
+        self.source_name = QLineEdit()
+        self.source_name.setPlaceholderText(tr("Name (optional)"))
+        self.source_name.setToolTip(tr("Shown at the start of notifications, e.g. MP U20 Girls"))
+        self.source_name.setFixedWidth(150)
+
         # Source type selector
         self.select_source = QComboBox()
         self.select_source.addItems([tr("Web(url)"), tr("Local"), "LiveChessCloud"])
@@ -177,6 +184,7 @@ class SourceHBox(QWidget):
 
         # Layout for the row
         layout = QHBoxLayout()
+        layout.addWidget(self.source_name)
         layout.addWidget(self.select_source)
         layout.addWidget(self.source_value)
         layout.addWidget(self.choose_button)
@@ -199,6 +207,12 @@ class SourceHBox(QWidget):
     def get_value(self) -> str:
         """Return the current text in the input field."""
         return self.source_value.text()
+
+    def set_name(self, name: str) -> None:
+        self.source_name.setText(name or "")
+
+    def get_name(self) -> str:
+        return self.source_name.text().strip()
 
     def get_source_index(self) -> int:
         """Return the selected source type index."""

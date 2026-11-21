@@ -26,6 +26,13 @@ def make_provider(settings: PushSettings) -> PushProvider:
     return PushoverProvider(settings.user_key, settings.app_token)
 
 
+def with_source(message: Optional[PushMessage], source: str) -> Optional[PushMessage]:
+    """Put the source name (e.g. tournament group) at the start of the title."""
+    if message is None or not source:
+        return message
+    return replace(message, title=f"[{source}] {message.title}")
+
+
 class _Signals(QObject):
     finished = pyqtSignal(str)   # "" on success, error text otherwise
 
@@ -90,7 +97,7 @@ class PushNotifier:
             return
         self._pool.start(_SendTask(make_provider(self.settings), message, on_done))
 
-    def notify_claim(self, entry, follow=None) -> None:
+    def notify_claim(self, entry, follow=None, source: str = "") -> None:
         """
         Send a claim / reminder entry (ClaimEntry) if its type is enabled.
         For a followed player and an event chosen in the follow settings it is
@@ -113,15 +120,15 @@ class PushNotifier:
                                 white, black, str(entry.move), force=followed)
         if message is not None and followed:
             message = replace(message, title="★ " + message.title)
-        self._dispatch(message)
+        self._dispatch(with_source(message, source))
 
-    def notify_game_end(self, board: str, white: str, black: str, result: str) -> None:
+    def notify_game_end(self, board: str, white: str, black: str, result: str, source: str = "") -> None:
         """A game of a followed player has finished."""
         if not self.active:
             return
         message = build_message(self.settings, "GAME_END", board, white, black, result=result, force=True)
         if message is not None:
-            self._dispatch(replace(message, title="★ " + message.title))
+            self._dispatch(with_source(replace(message, title="★ " + message.title), source))
 
     def notify_pgn_error(self, url: str, reason: str) -> None:
         """A PGN source keeps failing (reported once per failure series by DownloadGames)."""
