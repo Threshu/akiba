@@ -1,6 +1,8 @@
 import urllib.request
 from urllib.error import HTTPError, URLError
 import certifi
+
+from src.helpers import get_ssl_context
 import time
 
 # Fixed header that mimics a regular browser
@@ -23,7 +25,7 @@ def download_pgn(url: str, timeout=30) -> bytes:
             response = urllib.request.urlopen(
                 req,
                 timeout=timeout,
-                cafile=certifi.where()
+                context=get_ssl_context(certifi.where())
             )
             return response.read()
 
@@ -57,7 +59,7 @@ def check_download(url: str, timeout=10) -> bool:
         urllib.request.urlopen(
             req,
             timeout=timeout,
-            cafile=certifi.where()
+            context=get_ssl_context(certifi.where())
         )
         return True
 

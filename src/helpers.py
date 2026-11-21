@@ -1,10 +1,23 @@
 import enum
 import os
 import platform
+import ssl
 import sys
+from functools import lru_cache
 
 
 APP_NAME = "Akiba"
+
+
+@lru_cache(maxsize=None)
+def get_ssl_context(cafile: str) -> ssl.SSLContext:
+    """
+    Cached SSL context for HTTPS downloads.
+
+    urlopen(..., cafile=...) was removed in Python 3.13; pass
+    context=get_ssl_context(path) instead. The CA bundle is read once.
+    """
+    return ssl.create_default_context(cafile=cafile)
 
 
 def get_board_number(game) -> str:

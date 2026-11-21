@@ -34,8 +34,9 @@ def _fetch_json(url: str, timeout: int = 30) -> Optional[Any]:
     """Fetch JSON data from a URL with error handling."""
     try:
         req = urllib.request.Request(url, headers=BROWSER_HEADERS)
-        cert_path = get_ssl_cert_path()
-        response = urllib.request.urlopen(req, timeout=timeout, cafile=cert_path)
+        from src.helpers import get_ssl_context
+        context = get_ssl_context(get_ssl_cert_path())
+        response = urllib.request.urlopen(req, timeout=timeout, context=context)
         return response.read()
     except (HTTPError, URLError, TimeoutError, Exception):
         return None
