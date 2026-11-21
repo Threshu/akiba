@@ -225,3 +225,8 @@ class MenuBarBuilder:
         user_manual_action = QAction('User Manual', self.view)
         options_menu.addAction(user_manual_action)
         user_manual_action.triggered.connect(self.view.controller.on_user_manual_clicked)
+
+        # Log file (for bug reports)
+        log_action = QAction('Open Log Folder', self.view)
+        options_menu.addAction(log_action)
+        log_action.triggered.connect(self.view.controller.on_open_log_folder_clicked)

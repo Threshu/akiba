@@ -7,10 +7,14 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 # Local application imports
+from src.logging_setup import setup_logging
 from src.controllers import ChessClaimController
 from src.helpers import resource_path
 
 if __name__ == '__main__':
+    # Log to %APPDATA%/Akiba/akiba.log (incl. crashes) before anything else
+    setup_logging()
+
     # Initialize the main application controller
     app = ChessClaimController()
 

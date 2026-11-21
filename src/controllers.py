@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 from datetime import datetime
@@ -19,6 +20,9 @@ from src.models.events import get_players
 from src.reminders.manager import ReminderManager
 from src.models.livechesscloud import LiveChessCloudSource
 from src.push import PushNotifier, PushSettings
+
+
+logger = logging.getLogger(__name__)
 
 
 class ChessClaimController(QApplication):
@@ -304,6 +308,13 @@ class ChessClaimController(QApplication):
     def on_user_manual_clicked(self) -> None:
         """Open the user documentation file."""
         self.view.open_user_manual()
+
+    def on_open_log_folder_clicked(self) -> None:
+        """Open the folder containing akiba.log in the file manager."""
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        from src.logging_setup import get_log_path
+        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(get_log_path())))
 
     def on_about_clicked(self) -> None:
         self.view.load_about_dialog()
@@ -882,6 +893,12 @@ class ChessClaimController(QApplication):
         self.view.add_item_to_table(entry)
 
     def update_download_status(self, status: Status) -> None:
+        if status != getattr(self, "_last_download_status", None):
+            if status == Status.ERROR:
+                logger.warning("PGN download failed")
+            elif status == Status.OK and getattr(self, "_last_download_status", None) == Status.ERROR:
+                logger.info("PGN download recovered")
+            self._last_download_status = status
         self.view.set_download_status(status)
         self.push.on_download_status(status == Status.ERROR, status == Status.OK)
 
