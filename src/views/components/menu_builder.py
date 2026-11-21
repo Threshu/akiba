@@ -240,6 +240,10 @@ class MenuBarBuilder:
         follow_action = QAction(tr('Followed players...'), self.view)
         follow_action.triggered.connect(self.view.controller.on_follow_players_clicked)
         players_menu.addAction(follow_action)
+        monitor_action = QAction(tr('Live board monitor...'), self.view)
+        monitor_action.setShortcut('Ctrl+M')
+        monitor_action.triggered.connect(self.view.controller.on_live_monitor_clicked)
+        players_menu.addAction(monitor_action)
 
     def _build_help_menu(self, menu_bar) -> None:
         """Build Help menu with About and User Manual."""

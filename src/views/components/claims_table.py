@@ -287,6 +287,13 @@ class ClaimsTable(QWidget):
             context_menu.addAction(tr("Remove selected ({n})").format(n=len(rows))) \
                 .triggered.connect(lambda: self.remove_rows(rows))
 
+        # Follow this board live
+        data = self.model.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
+        if data.get("game_id"):
+            context_menu.addSeparator()
+            context_menu.addAction(tr("Add to live board monitor")).triggered.connect(
+                lambda: self.controller.add_to_live_monitor(data["game_id"]))
+
         # Whole round of the clicked row (e.g. after round 1 when round 2 starts)
         rnd = self.row_round(row)
         if rnd:

@@ -427,6 +427,31 @@ class ChessClaimController(QApplication):
     # FOLLOWED PLAYERS
     # -------------------------------------------------------------------------
 
+    # -------------------------------------------------------------------------
+    # LIVE BOARD MONITOR
+    # -------------------------------------------------------------------------
+
+    def on_live_monitor_clicked(self) -> None:
+        from src.views.live_monitor import LiveMonitorWindow
+        if not self.games:
+            self.on_pgn_updated()
+        if getattr(self, "live_monitor", None) is None:
+            self.live_monitor = LiveMonitorWindow(self)
+        self.live_monitor.refresh()
+        self.live_monitor.show()
+        self.live_monitor.raise_()
+        self.live_monitor.activateWindow()
+
+    def add_to_live_monitor(self, game_id: str) -> None:
+        self.on_live_monitor_clicked()
+        self.live_monitor.add_game(game_id)
+
+    def open_game_in_viewer(self, game_id: str) -> None:
+        game = next((g for g in self.games if self.make_game_id(g) == game_id), None)
+        if game is not None:
+            index = self.games.index(game)
+            self.open_viewer_for_claim(index, len(list(game.mainline_moves())), game_id)
+
     def on_follow_players_clicked(self) -> None:
         from src.views.dialogs.follow_dialog import FollowPlayersDialog
         if not self.games:
@@ -710,6 +735,9 @@ class ChessClaimController(QApplication):
         # Which source each game comes from (for named sources)
         self._update_game_sources()
         self.view.set_games_summary(self.games)
+        monitor = getattr(self, "live_monitor", None)
+        if monitor is not None and monitor.isVisible():
+            monitor.refresh()
 
         # Games of followed players that just finished
         self._notify_followed_game_ends()
