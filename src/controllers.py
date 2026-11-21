@@ -448,19 +448,25 @@ class ChessClaimController(QApplication):
         # Log file for tracking illegal moves
         log_path = os.path.join(app_path, "illegal_moves_log.txt")
         
-        with open(pgn_path, "r", encoding="utf-8") as f:
+        import io
+        with open(pgn_path, "r", encoding="utf-8") as pgn_file:
+            pgn_text = pgn_file.read()
+
+        with io.StringIO(pgn_text) as f:
             game_index = 0
             
             while True:
                 try:
+                    start = f.tell()
                     g = chess.pgn.read_game(f)
                     if not g:
                         break
+                    raw_game = pgn_text[start:f.tell()]
                     
                     # Check for errors in the loaded game
                     if g.errors:
                         for error in g.errors:
-                            illegal_move_games.append((game_index, str(error)))
+                            illegal_move_games.append((game_index, str(error), raw_game))
                             
                             # Log detailed info to file
                             with open(log_path, 'a', encoding='utf-8') as log_file:
@@ -497,7 +503,7 @@ class ChessClaimController(QApplication):
                     
                 except (chess.InvalidMoveError, chess.IllegalMoveError) as e:
                     # Fallback for direct exceptions
-                    illegal_move_games.append((game_index, str(e)))
+                    illegal_move_games.append((game_index, str(e), ""))
                     
                     with open(log_path, 'a', encoding='utf-8') as log_file:
                         log_file.write(f"\n{'='*60}\n")
@@ -526,15 +532,51 @@ class ChessClaimController(QApplication):
         if self.board_viewer is not None:
             self.board_viewer.reload_pgn(pgn_path)
 
-        # Process illegal moves detected during parsing and add to claims
-        for game_idx, error_msg in illegal_move_games:
-            self._add_illegal_move_claim(game_idx, error_msg)
+        # Process illegal moves detected during parsing and add to claims -
+        # only once the move is completed (clock pressed / next move played)
+        self._process_illegal_moves(illegal_move_games)
 
         # Run all reminders through the manager
         self.run_all_reminders()
 
         # Refresh table
         self.view.refresh_table()
+
+    # Games without clock times: report an illegal move that stays this long
+    ILLEGAL_MOVE_GRACE_NO_CLOCK = 60
+
+    def _process_illegal_moves(self, illegal_move_games) -> None:
+        """
+        Report an illegal move only when it is a real move: the player pressed
+        the clock after it ([%clk] on the move) or another move followed. A piece
+        put on a wrong square for a moment is corrected before that and ignored.
+        For games without clock data the illegal move must persist for
+        ILLEGAL_MOVE_GRACE_NO_CLOCK seconds.
+        """
+        import time
+        from src.claims.illegal_move_confirm import illegal_move_status
+
+        pending = getattr(self, "_pending_illegal", {})
+        still_pending = {}
+        now = time.monotonic()
+        seen = set()
+        for game_idx, error_msg, raw_game in illegal_move_games:
+            if game_idx in seen or game_idx >= len(self.games):
+                continue
+            seen.add(game_idx)
+            game = self.games[game_idx]
+            valid_moves = len(list(game.mainline_moves()))
+            key = (self.make_game_id(game), valid_moves)
+            completed, has_clock = illegal_move_status(raw_game, valid_moves) if raw_game else (True, False)
+            first_seen = pending.get(key, now)
+            if completed or (not has_clock and now - first_seen >= self.ILLEGAL_MOVE_GRACE_NO_CLOCK):
+                self._add_illegal_move_claim(game_idx, error_msg)
+            else:
+                if key not in pending:
+                    logger.info("illegal move on board %s not completed yet (no clock press): %s",
+                                ClaimsManager.get_board_number(game), error_msg)
+                still_pending[key] = first_seen
+        self._pending_illegal = still_pending
 
     def _add_illegal_move_claim(self, game_idx: int, error_msg: str) -> None:
         """Add an illegal move claim entry for a game that failed to parse."""
@@ -573,11 +615,10 @@ class ChessClaimController(QApplication):
         # For navigation: last valid move is the actual count
         last_valid_move = actual_move_count
         
-        # Extract fullmove number from FEN for display (illegal move would be this number)
-        fen_match = re.search(r"w - - \d+ (\d+)", error_msg)
-        illegal_move_num = fen_match.group(1) if fen_match else str(actual_move_count + 1)
-        
-        move_display = f"{illegal_move_num}.{san_move}"
+        # Move number of the illegal move from the count of valid half-moves before it
+        illegal_move_num = actual_move_count // 2 + 1
+        dots = "." if actual_move_count % 2 == 0 else "..."
+        move_display = f"{illegal_move_num}{dots}{san_move}"
         
         entry = ClaimEntry(
             type=ClaimType.ILLEGAL_MOVE,
