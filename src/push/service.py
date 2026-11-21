@@ -5,7 +5,6 @@ sending on a worker thread so a slow tournament network never blocks the GUI.
 from __future__ import annotations
 
 import logging
-import time
 from typing import Callable, Optional
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
@@ -19,9 +18,6 @@ from src.i18n import tr
 
 logger = logging.getLogger(__name__)
 
-# After a PGN error was reported, downloads must stay OK this long before a
-# new error is reported again (several sources may alternate OK / ERROR).
-PGN_ERROR_RESET_SECONDS = 60
 
 
 def make_provider(settings: PushSettings) -> PushProvider:
@@ -60,8 +56,6 @@ class PushNotifier:
     def __init__(self, settings: Optional[PushSettings] = None) -> None:
         self.settings = settings or PushSettings()
         self._sent_keys: set = set()
-        self._pgn_error_notified = False
-        self._last_pgn_error = 0.0
         self._pool = QThreadPool.globalInstance()
 
     @property
@@ -89,18 +83,16 @@ class PushNotifier:
         self._dispatch(build_message(self.settings, code, str(entry.board_number),
                                      white, black, str(entry.move)))
 
-    def on_download_status(self, is_error: bool, is_ok: bool) -> None:
-        """One notification per series of PGN download errors."""
-        now = time.monotonic()
-        if is_error:
-            self._last_pgn_error = now
-            if not self._pgn_error_notified:
-                self._pgn_error_notified = True
-                if self.active:
-                    self._dispatch(build_message(self.settings, ERR_PGN))
-        elif is_ok and self._pgn_error_notified:
-            if now - self._last_pgn_error >= PGN_ERROR_RESET_SECONDS:
-                self._pgn_error_notified = False
+    def notify_pgn_error(self, url: str, reason: str) -> None:
+        """A PGN source keeps failing (reported once per failure series by DownloadGames)."""
+        if not self.active:
+            return
+        message = build_message(self.settings, ERR_PGN)
+        if message is None:
+            return
+        details = "\n".join(part for part in (url, reason) if part)
+        self._dispatch(PushMessage(message.title, f"{message.body}\n{details}".strip(),
+                                   message.priority))
 
     def send_test(self, settings: PushSettings, code: str,
                   on_done: Callable[[str], None]) -> None:

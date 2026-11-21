@@ -918,14 +918,12 @@ class ChessClaimController(QApplication):
         self.view.add_item_to_table(entry)
 
     def update_download_status(self, status: Status) -> None:
-        if status != getattr(self, "_last_download_status", None):
-            if status == Status.ERROR:
-                logger.warning("PGN download failed")
-            elif status == Status.OK and getattr(self, "_last_download_status", None) == Status.ERROR:
-                logger.info("PGN download recovered")
-            self._last_download_status = status
+        # Failures are logged per source in DownloadGames
         self.view.set_download_status(status)
-        self.push.on_download_status(status == Status.ERROR, status == Status.OK)
+
+    def on_pgn_source_failed(self, url: str, reason: str) -> None:
+        """A PGN source has been failing continuously - tell the arbiter's phone."""
+        self.push.notify_pgn_error(url, reason)
 
     def on_push_settings_clicked(self) -> None:
         from src.views.dialogs.push_dialog import PushSettingsDialog
@@ -947,6 +945,7 @@ class ChessClaimController(QApplication):
 
         self.download_worker = DownloadGames(downloads, self.stop_event)
         self.download_worker.status_signal.connect(self.update_download_status)
+        self.download_worker.source_failed_signal.connect(self.on_pgn_source_failed)
         self.download_worker.start()
 
     def start_make_png_worker(self, lock: Lock) -> None:

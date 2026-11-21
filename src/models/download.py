@@ -1,9 +1,13 @@
+import logging
 import urllib.request
+from typing import Tuple
 from urllib.error import HTTPError, URLError
 import certifi
 
 from src.helpers import get_ssl_context
 import time
+
+logger = logging.getLogger(__name__)
 
 # Fixed header that mimics a regular browser
 BROWSER_HEADERS = {
@@ -11,13 +15,17 @@ BROWSER_HEADERS = {
     "X-Client": "ChessClaimTool/0.4.3"
 }
 
-def download_pgn(url: str, timeout=30) -> bytes:
+def fetch_pgn(url: str, timeout=30) -> Tuple[bytes, str]:
     """
-    Download PGN from URL with up to 3 retries.
-    Handles 404 as 'PGN not ready yet' and retries.
-    Returns bytes() on failure.
-    """
+    Download PGN from URL with up to 3 attempts.
 
+    404 ('PGN not ready yet') and an empty body (live servers rewriting the
+    file) are retried after a short pause.
+
+    Returns:
+        (data, "") on success, (b"", reason) on failure.
+    """
+    reason = ""
     for attempt in range(1, 4):  # 3 attempts
         try:
             req = urllib.request.Request(url, headers=BROWSER_HEADERS)
@@ -27,24 +35,33 @@ def download_pgn(url: str, timeout=30) -> bytes:
                 timeout=timeout,
                 context=get_ssl_context(certifi.where())
             )
-            return response.read()
+            data = response.read()
+            if data:
+                return data, ""
+            reason = "empty file"
+            time.sleep(0.5)
+            continue
 
         except HTTPError as e:
+            reason = f"HTTP {e.code}"
             if e.code == 404:
                 time.sleep(3)
-                continue
-            else:
-                pass  # HTTP error, will retry
         except URLError as e:
-            pass  # Network error, will retry
+            reason = f"network error: {e.reason}"
         except TimeoutError:
-            pass  # Timeout, will retry
+            reason = f"timeout after {timeout} s"
         except Exception as e:
-            pass  # Unexpected error, will retry
+            reason = f"{e.__class__.__name__}: {e}"
+        logger.debug("download attempt %d failed for %s: %s", attempt, url, reason)
 
     time.sleep(1)
 
-    return bytes()
+    return bytes(), reason
+
+
+def download_pgn(url: str, timeout=30) -> bytes:
+    """Download PGN from URL. Returns bytes() on failure (see fetch_pgn)."""
+    return fetch_pgn(url, timeout)[0]
 
 
 def check_download(url: str, timeout=10) -> bool:

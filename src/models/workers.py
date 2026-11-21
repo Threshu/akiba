@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os.path
+import time
 from queue import Queue
 from threading import Thread, Lock
 from typing import List, TYPE_CHECKING, Dict, Optional, Any, Set
@@ -12,12 +14,14 @@ import chess
 from src.helpers import get_appdata_path, Status, get_board_number
 from src.claims.manager import ClaimsManager
 from src.models.events import get_players, ClaimType, ClaimEntry
-from src.models.download import check_download, download_pgn
+from src.models.download import check_download, download_pgn, fetch_pgn
 from src.models.livechesscloud import (
     extract_tournament_id, fetch_tournament,
     TournamentData, LiveChessCloudSource, get_rounds_with_games,
     fetch_index, fetch_game, generate_pgn_for_round
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.controllers import SourceDialogController
@@ -372,14 +376,21 @@ class DownloadGames(QThread):
     """Downloads PGN files from the web."""
 
     status_signal = pyqtSignal(Status)
+    # (url, reason) - a source has been failing continuously for ERROR_GRACE seconds
+    source_failed_signal = pyqtSignal(str, str)
     INTERVAL = 2
-    __slots__ = ["downloads", "stop_event", "app_path"]
+    # Live servers rewrite their PGN files, so single failed downloads are
+    # normal; only a source that keeps failing this long is reported.
+    ERROR_GRACE = 60
+    __slots__ = ["downloads", "stop_event", "app_path", "_failing_since", "_reported"]
 
     def __init__(self, downloads: Dict[str, str], stop_event: Event = None):
         super().__init__()
         self.downloads = downloads
         self.stop_event = stop_event
         self.app_path = get_appdata_path()
+        self._failing_since: Dict[str, float] = {}
+        self._reported: Set[str] = set()
 
     def run(self) -> None:
         if not self.stop_event:
@@ -391,20 +402,41 @@ class DownloadGames(QThread):
 
     def download_pgns(self):
         for url in self.downloads:
-            status = Status.OK
-
-            data = download_pgn(url)
+            data, reason = fetch_pgn(url)
             if not data:
-                status = Status.ERROR
-            self.status_signal.emit(status)
+                self.status_signal.emit(Status.ERROR)
+                self._on_failure(url, reason)
+                # Keep the last good copy instead of overwriting it with nothing
+                continue
+
+            self.status_signal.emit(Status.OK)
+            self._on_success(url)
 
             filename = self.downloads[url]
             try:
                 with open(filename, "wb") as file:
                     file.write(data)
-            except (FileNotFoundError, TypeError):
+            except (OSError, TypeError) as exc:
+                logger.warning("cannot write %s: %s", filename, exc)
                 self.status_signal.emit(Status.ERROR)
                 continue
+
+    def _on_failure(self, url: str, reason: str) -> None:
+        now = time.monotonic()
+        if url not in self._failing_since:
+            self._failing_since[url] = now
+            logger.warning("PGN download failed: %s (%s)", url, reason)
+        elif (url not in self._reported
+              and now - self._failing_since[url] >= self.ERROR_GRACE):
+            self._reported.add(url)
+            logger.error("PGN source failing for %d s: %s (%s)", self.ERROR_GRACE, url, reason)
+            self.source_failed_signal.emit(url, reason)
+
+    def _on_success(self, url: str) -> None:
+        since = self._failing_since.pop(url, None)
+        if since is not None:
+            logger.info("PGN download recovered after %.0f s: %s", time.monotonic() - since, url)
+        self._reported.discard(url)
 
 
 # ---------------------------------------------------------
