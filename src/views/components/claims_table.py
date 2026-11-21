@@ -60,8 +60,8 @@ class ClaimsTable(QWidget):
             from src.notifications.mac import Notification
             self.notification = Notification()
         elif platform.system() == "Windows":
-            from windows_toasts import WindowsToaster, ToastImageAndText2, ToastDisplayImage, ToastDuration
-            self.notification = WindowsToaster("Akiba")
+            from src.notifications.windows_toast import make_toaster
+            self.notification = make_toaster("Akiba")
         else:
             self.notification = None
 
@@ -347,24 +347,9 @@ class ClaimsTable(QWidget):
             self.notification.notify(claim_type, players, move)
 
         elif platform.system() == "Windows":
-            try:
-                from windows_toasts import ToastImageAndText2, ToastDisplayImage, ToastDuration
-                toast = ToastImageAndText2()
-                toast.SetHeadline(str(claim_type))
-                toast.SetBody(f"{players}\n{move}")
-                toast.AddImage(ToastDisplayImage.fromPath(resource_path("notification_icon.png")))
-                toast.SetDuration(ToastDuration("short"))
-                self.notification.show_toast(toast)
-            except Exception:
-                # Fallback to simple text notification
-                try:
-                    from windows_toasts import ToastText1
-                    toast = ToastText1()
-                    toast.SetHeadline(str(claim_type))
-                    toast.SetBody(f"{players}\n{move}")
-                    self.notification.show_toast(toast)
-                except Exception:
-                    pass
+            from src.notifications.windows_toast import show_toast
+            show_toast(self.notification, claim_type, f"{players}\n{move}",
+                       resource_path("notification_icon.png"))
 
     # Columns searched by the filter: claim type, board, players, move
     FILTER_COLUMNS = (2, 3, 4, 5)

@@ -5,7 +5,7 @@ import platform
 if platform.system() == "Darwin":
     from src.notifications.mac import Notification
 elif platform.system() == "Windows":
-    from windows_toasts import WindowsToaster, ToastImageAndText2, ToastDisplayImage, ToastDuration
+    from src.notifications.windows_toast import make_toaster, show_toast
 
 
 class NotificationManager:
@@ -16,16 +16,16 @@ class NotificationManager:
 
     def __init__(self) -> None:
         self.system = platform.system()
-        
+
         if self.system == "Darwin":
             self.notification = Notification()
         elif self.system == "Windows":
-            self.toaster = WindowsToaster("Akiba")
-    
+            self.toaster = make_toaster("Akiba")
+
     def show_notification(self, title: str, message: str, image_path: str | None = None) -> None:
         """
         Display a desktop notification.
-        
+
         Args:
             title: Notification title
             message: Notification message body
@@ -34,12 +34,4 @@ class NotificationManager:
         if self.system == "Darwin":
             self.notification.notify(title, "", message)
         elif self.system == "Windows":
-            try:
-                if image_path:
-                    toast = ToastImageAndText2(image_path, title, message)
-                    self.toaster.show(toast)
-                else:
-                    self.toaster.show(title, message)
-            except Exception:
-                # Fallback to simple text notification
-                self.toaster.show(title, message)
+            show_toast(self.toaster, title, message, image_path)

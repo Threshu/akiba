@@ -111,8 +111,8 @@ class ChessClaimView(QMainWindow):
             from src.notifications.mac import Notification
             self.notification = Notification()
         elif platform.system() == "Windows":
-            from windows_toasts import WindowsToaster, ToastImageAndText2, ToastDisplayImage, ToastDuration
-            self.notification = WindowsToaster("Akiba")
+            from src.notifications.windows_toast import make_toaster
+            self.notification = make_toaster("Akiba")
         else:
             self.notification = None
 
@@ -694,23 +694,7 @@ class ChessClaimView(QMainWindow):
                 self.notification.notify(claim_type.value, players, move)
 
         elif platform.system() == "Windows":
-            try:
-                newToast = ToastImageAndText2()
-                newToast.SetHeadline(str(claim_type))
-                newToast.SetBody(f"{players}\n{move}")
-                newToast.AddImage(ToastDisplayImage.fromPath(resource_path("notification_icon.png")))
-                newToast.SetDuration(ToastDuration("short"))
-                if hasattr(self.notification, 'show_toast'):
-                    self.notification.show_toast(newToast)
-            except Exception:
-                # Fallback to simple text notification
-                try:
-                    from windows_toasts import ToastText1
-                    toast = ToastText1()
-                    toast.SetHeadline(str(claim_type))
-                    toast.SetText1(f"{players}\n{move}")
-                    if hasattr(self.notification, 'show_toast'):
-                        self.notification.show_toast(toast)
-                except Exception:
-                    pass
+            from src.notifications.windows_toast import show_toast
+            show_toast(self.notification, claim_type.value, f"{players}\n{move}",
+                       resource_path("notification_icon.png"))
 
