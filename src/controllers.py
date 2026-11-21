@@ -970,7 +970,7 @@ class ChessClaimController(QApplication):
                         result, current.headers.get("Result", "*"))
             return
         shown = self.__dict__.setdefault("_result_alerts_shown", set())
-        key = (entry.game_id, result, plies)
+        key = (entry.type, entry.game_id, result, plies)
         if key in shown:
             return
         shown.add(key)
@@ -1117,6 +1117,13 @@ class ChessClaimController(QApplication):
 
         # NEW: Store all claims in central store AND update GUI table
         for entry in entries:
+            if entry.type == ClaimType.SOFIA_RULE:
+                # Depends on the final result: confirm it is not a transient
+                # state of the transmission before showing / notifying
+                game = next((g for g in self.games if self.make_game_id(g) == entry.game_id), None)
+                if game is not None:
+                    self._schedule_result_alert(game, entry)
+                    continue
             self.claims_store.add_claim(entry)  # Store in ClaimsStore
             self.view.add_item_to_table(entry)
 
@@ -1275,6 +1282,24 @@ class ChessClaimController(QApplication):
 
     def update_bar_scan_status(self, status: Status) -> None:
         self.view.set_scan_status(status)
+        if status == Status.WAIT and getattr(self, "_notify_priming", False):
+            # First full scan pass done: games finished by now are history
+            self._notify_priming = False
+            self._history_games = {self.make_game_id(g) for g in self.games
+                                   if g.headers.get("Result", "*") != "*"}
+            logger.info("notifications active; %d finished games are not notified",
+                        len(self._history_games))
+
+    def should_notify(self, entry) -> bool:
+        """
+        Phone / desktop notifications only for what happens while monitoring:
+        not during the first scan pass after (re)start - everything found
+        then was already notified before - and not for games that had
+        already finished when monitoring started. The table shows all.
+        """
+        if getattr(self, "_notify_priming", False):
+            return False
+        return (entry.game_id or "") not in getattr(self, "_history_games", set())
 
     # -------------------------------------------------------------------------
     # WORKERS
@@ -1302,6 +1327,7 @@ class ChessClaimController(QApplication):
         self.make_pgn_worker.start()
 
     def start_scan_worker(self, lock: Lock) -> None:
+        self._notify_priming = True
         app_path = get_appdata_path()
         filename = os.path.join(app_path, "games.pgn")
 

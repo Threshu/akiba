@@ -501,6 +501,8 @@ class ChessClaimView(QMainWindow):
     def add_item_to_table(self, entry) -> None:
         """Add a claim to the table using ClaimsTable component."""
         self.claims_table_widget.add_claim(entry)
+        if not self.controller.should_notify(entry):
+            return
         self.controller.push.notify_claim(entry, self.controller.follow,
                                           source=self.controller.source_name_of(entry.game_id))
 

@@ -257,6 +257,9 @@ class ClaimsTable(QWidget):
 
         # Desktop notification (named source first)
         source = self.controller.source_name_of(entry.game_id)
+        if not self.controller.should_notify(entry):
+            self.table.clearSelection()
+            return
         headline = f"#{board_number} {claim_type}" if board_number and board_number != "-" else claim_type
         self._notify(f"[{source}] {headline}" if source else headline, players, move)
         self.table.clearSelection()
