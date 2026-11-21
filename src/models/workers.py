@@ -763,8 +763,21 @@ class MakePgn(Thread):
 
         self.lock_file()
         try:
-            with open(self.filename, "wb") as file:
+            # Write a temp file and swap it in atomically, so readers without the
+            # lock (GUI reload, board viewer) never see a half-written games.pgn
+            tmp_name = self.filename + ".tmp"
+            with open(tmp_name, "wb") as file:
                 file.write(data)
+            for attempt in range(5):
+                try:
+                    os.replace(tmp_name, self.filename)
+                    break
+                except PermissionError:
+                    # Windows: a reader still has games.pgn open - retry shortly
+                    time.sleep(0.05)
+            else:
+                with open(self.filename, "wb") as file:
+                    file.write(data)
         finally:
             self.release_file()
 

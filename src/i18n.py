@@ -211,6 +211,9 @@ PL = {
     # --- sources dialog ---
     "PGN Sources": "Źródła PGN",
     "Choose File": "Wybierz plik",
+    "In progress: {ongoing}/{total} · Moves: {moves}": "Trwające: {ongoing}/{total} · Ruchy: {moves}",
+    "{name}: {ongoing}/{total} in progress, {moves} moves": "{name}: trwające {ongoing}/{total}, ruchy: {moves}",
+    "Other": "Inne",
     "Name (optional)": "Nazwa (opcjonalnie)",
     "Shown at the start of notifications, e.g. MP U20 Girls":
         "Pokazywana na początku powiadomień, np. MP K20",

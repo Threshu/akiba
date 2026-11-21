@@ -446,7 +446,8 @@ class ChessClaimController(QApplication):
         cache = self.__dict__.setdefault("_source_file_cache", {})
         for path, name in names.items():
             try:
-                mtime = os.path.getmtime(path)
+                stat = os.stat(path)
+                mtime = (stat.st_mtime_ns, stat.st_size)  # a file being rewritten changes size too
             except OSError:
                 continue
             cached = cache.get(path)
@@ -708,6 +709,7 @@ class ChessClaimController(QApplication):
 
         # Which source each game comes from (for named sources)
         self._update_game_sources()
+        self.view.set_games_summary(self.games)
 
         # Games of followed players that just finished
         self._notify_followed_game_ends()

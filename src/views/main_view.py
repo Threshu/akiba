@@ -234,7 +234,15 @@ class ChessClaimView(QMainWindow):
         self.filter_edit.setPlaceholderText(tr("Filter by player, board or claim..."))
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.textChanged.connect(self.claims_table_widget.set_filter)
-        container_layout.addWidget(self.filter_edit)
+
+        # Games in progress / total moves, next to the filter (updated after each PGN reload)
+        self.games_label = QLabel()
+        self.games_label.setStyleSheet("color: #333333; font-weight: 600; padding-left: 10px;")
+        filter_row = QHBoxLayout()
+        filter_row.setContentsMargins(0, 0, 0, 0)
+        filter_row.addWidget(self.filter_edit, 1)
+        filter_row.addWidget(self.games_label)
+        container_layout.addLayout(filter_row)
         container_layout.addSpacing(4)
 
         container_layout.addWidget(self.claims_table_widget.table)
@@ -282,6 +290,24 @@ class ChessClaimView(QMainWindow):
                 button.setToolTip(tr("Last check: {time} - all results match").format(time=report.finished_at))
             else:
                 button.setToolTip(tr("Compare transmission results with ChessManager"))
+
+    def set_games_summary(self, games) -> None:
+        """'In progress: 18/36 · Moves: 1234' with a per-source breakdown in the tooltip."""
+        total = len(games)
+        ongoing = sum(1 for g in games if g.headers.get("Result", "*") == "*")
+        moves = sum((len(list(g.mainline_moves())) + 1) // 2 for g in games)
+        self.games_label.setText(tr("In progress: {ongoing}/{total} · Moves: {moves}").format(
+            ongoing=ongoing, total=total, moves=moves))
+        per_source = {}
+        for g in games:
+            name = self.controller.source_name_of(self.controller.make_game_id(g)) or tr("Other")
+            stats = per_source.setdefault(name, [0, 0, 0])
+            stats[0] += 1
+            stats[1] += g.headers.get("Result", "*") == "*"
+            stats[2] += (len(list(g.mainline_moves())) + 1) // 2
+        lines = [tr("{name}: {ongoing}/{total} in progress, {moves} moves").format(
+            name=n, total=s[0], ongoing=s[1], moves=s[2]) for n, s in sorted(per_source.items())]
+        self.games_label.setToolTip("\n".join(lines))
 
     def set_gui(self) -> None:
         """Initialize all GUI components (wrapper for backward compatibility)."""
@@ -443,6 +469,7 @@ class ChessClaimView(QMainWindow):
         center_layout.addWidget(self.scan_image)
         center_layout.addWidget(self.engine_label)
         center_layout.addWidget(self.engine_image)
+
         
         center_container.setLayout(center_layout)
         status_layout.addWidget(center_container)
