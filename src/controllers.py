@@ -1299,7 +1299,31 @@ class ChessClaimController(QApplication):
         """
         if getattr(self, "_notify_priming", False):
             return False
-        return (entry.game_id or "") not in getattr(self, "_history_games", set())
+        if (entry.game_id or "") in getattr(self, "_history_games", set()):
+            return False
+        return self._throttle(entry)
+
+    # Same game, same family (repetitions / move counters / other type): no new
+    # notification within this time unless it escalates (2x -> 3x -> 5x, 50 -> 75)
+    NOTIFY_COOLDOWN_SECONDS = 10 * 60
+
+    def _throttle(self, entry) -> bool:
+        import time
+        from src.views.components.claims_table import claim_family
+        family, level = claim_family(entry.type)
+        log = self.__dict__.setdefault("_notify_log", {})
+        key = (entry.game_id or entry.players, family)
+        now = time.monotonic()
+        previous = log.get(key)
+        if previous is not None:
+            prev_level, prev_time = previous
+            if level <= prev_level and now - prev_time < self.NOTIFY_COOLDOWN_SECONDS:
+                logger.info("notification suppressed (%s already notified for board %s)",
+                            entry.type.name, entry.board_number)
+                return False
+        log[key] = (max(level, previous[0]) if previous and now - previous[1] < self.NOTIFY_COOLDOWN_SECONDS
+                    else level, now)
+        return True
 
     # -------------------------------------------------------------------------
     # WORKERS

@@ -56,6 +56,18 @@ ROW_COLORS = {
 PRIORITY_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
+def claim_family(claim_type: ClaimType):
+    """(family, level): a stronger level replaces a weaker one of the same game."""
+    return {
+        ClaimType.TWO_FOLD_WARNING: ("repetition", 1),
+        ClaimType.THREEFOLD: ("repetition", 2),
+        ClaimType.FIVEFOLD: ("repetition", 3),
+        ClaimType.FORTYFIVE_MOVES_WARNING: ("moves", 1),
+        ClaimType.FIFTY_MOVES: ("moves", 2),
+        ClaimType.SEVENTYFIVE_MOVES: ("moves", 3),
+    }.get(claim_type, (claim_type.name, 1))
+
+
 class ClaimsTable(QWidget):
     """
     Claims table component with styling and interaction logic.
@@ -191,16 +203,22 @@ class ClaimsTable(QWidget):
         layout.addWidget(self.table)
         self.setLayout(layout)
 
-    def add_claim(self, entry) -> None:
+    def add_claim(self, entry) -> bool:
         """
         Add a new row to the claims table.
-        
-        Args:
-            entry: ClaimEntry object with all claim data
+
+        One open row per game and family (repetitions 2x/3x/5x, move counters
+        45/50/75): a new entry replaces open rows of the same or a weaker
+        level; an entry weaker than an open row is not added.
+
+        Returns:
+            True if a row was added (the caller then may notify).
         """
         # Skip adding to table if already cleared (was marked via Clear Resolved)
         if entry.cleared:
-            return
+            return False
+        if not self._replace_family_rows(entry):
+            return False
             
         claim_type = tr(entry.type.value)
         board_number = entry.board_number
@@ -210,8 +228,6 @@ class ClaimsTable(QWidget):
         # Store game_index for safe row removal
         self.current_entry_game_index = entry.game_index
 
-        # Remove previous rows for same players and claim type (or weaker claim)
-        self.remove_rows_by_claim_type(claim_type, players)
 
         timestamp = datetime.now().strftime("%H:%M:%S")
         
@@ -246,6 +262,7 @@ class ClaimsTable(QWidget):
             "move_index": entry.move_counter,
             "start_move_index": entry.start_move_counter,
             "game_id": entry.game_id,
+            "type": entry.type.name,
         }, Qt.ItemDataRole.UserRole)
 
         # Set fixed row height for the new row to maintain consistency
@@ -255,14 +272,41 @@ class ClaimsTable(QWidget):
         # Backup calls resizeColumnToContents but it may cause issues with Fixed columns
         self.table.scrollToTop()
 
-        # Desktop notification (named source first)
-        source = self.controller.source_name_of(entry.game_id)
-        if not self.controller.should_notify(entry):
-            self.table.clearSelection()
-            return
-        headline = f"#{board_number} {claim_type}" if board_number and board_number != "-" else claim_type
-        self._notify(f"[{source}] {headline}" if source else headline, players, move)
         self.table.clearSelection()
+        return True
+
+    def notify_desktop(self, entry) -> None:
+        """Windows / macOS notification for an entry (named source and board first)."""
+        claim_type = tr(entry.type.value)
+        board_number = entry.board_number
+        source = self.controller.source_name_of(entry.game_id)
+        headline = f"#{board_number} {claim_type}" if board_number and board_number != "-" else claim_type
+        self._notify(f"[{source}] {headline}" if source else headline, entry.players, entry.move)
+
+    def _replace_family_rows(self, entry) -> bool:
+        """Remove open rows superseded by entry; False if a stronger open row exists."""
+        family, level = claim_family(entry.type)
+        to_remove = []
+        for row in range(self.model.rowCount()):
+            data = self.model.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
+            if data.get("game_id") != entry.game_id or self._is_acked(row):
+                continue
+            try:
+                row_type = ClaimType[data.get("type", "")]
+            except KeyError:
+                continue
+            row_family, row_level = claim_family(row_type)
+            if row_family != family:
+                continue
+            if row_level > level:
+                return False  # e.g. a 2-fold after a 3-fold of the same game
+            to_remove.append(row)
+        for row in reversed(to_remove):
+            self.model.removeRow(row)
+        if to_remove:
+            for i in range(self.model.rowCount()):
+                self.model.item(i, 0).setData(self.model.rowCount() - i, Qt.ItemDataRole.DisplayRole)
+        return True
 
     def show_context_menu(self, pos):
         """
