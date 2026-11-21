@@ -39,6 +39,9 @@ class ClaimsManager:
         ClaimType.FIVEFOLD,
         ClaimType.FIFTY_MOVES,
         ClaimType.SEVENTYFIVE_MOVES,
+        ClaimType.CHECKMATE_CLAIM,
+        ClaimType.STALEMATE_CLAIM,
+        ClaimType.DEAD_POSITION_CLAIM,
     )
 
     def is_enabled(self, claim_type: ClaimType) -> bool:

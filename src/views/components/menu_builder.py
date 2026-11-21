@@ -30,6 +30,9 @@ class MenuBarBuilder:
             (ClaimType.FIVEFOLD, '5-fold repetition'),
             (ClaimType.FIFTY_MOVES, '50-move rule'),
             (ClaimType.SEVENTYFIVE_MOVES, '75-move rule'),
+            (ClaimType.CHECKMATE_CLAIM, 'Checkmate'),
+            (ClaimType.STALEMATE_CLAIM, 'Stalemate'),
+            (ClaimType.DEAD_POSITION_CLAIM, 'Dead position'),
         ):
             widget = QWidget()
             layout = QHBoxLayout()

@@ -142,6 +142,9 @@ class ChessClaimController(QApplication):
         ClaimType.FIVEFOLD: "claim_fivefold",
         ClaimType.FIFTY_MOVES: "claim_fifty_moves",
         ClaimType.SEVENTYFIVE_MOVES: "claim_seventyfive_moves",
+        ClaimType.CHECKMATE_CLAIM: "claim_checkmate",
+        ClaimType.STALEMATE_CLAIM: "claim_stalemate",
+        ClaimType.DEAD_POSITION_CLAIM: "claim_dead_position",
     }
 
     def set_fifty_moves_threshold(self, moves: int) -> None:
