@@ -2,6 +2,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (QMenuBar, QCheckBox, QSpinBox, QWidget, QHBoxLayout, QWidgetAction, QSizePolicy)
 
+from src.models.events import ClaimType
+
 
 class MenuBarBuilder:
     def __init__(self, view):
@@ -9,10 +11,37 @@ class MenuBarBuilder:
 
     def build_menu(self) -> None:
         menu_bar = self.view.menuBar()
+        self._build_claims_menu(menu_bar)
         self._build_alerts_menu(menu_bar)
         self._build_reminders_menu(menu_bar)
         self._build_notifications_menu(menu_bar)
         self._build_help_menu(menu_bar)
+
+    def _build_claims_menu(self, menu_bar) -> None:
+        """Build Claims menu with on/off switches for repetition and move-count claims."""
+        claims_menu = menu_bar.addMenu('&Claims')
+        self.view.claim_type_actions = {}
+
+        for claim_type, label in (
+            (ClaimType.THREEFOLD, '3-fold repetition'),
+            (ClaimType.FIVEFOLD, '5-fold repetition'),
+            (ClaimType.FIFTY_MOVES, '50-move rule'),
+            (ClaimType.SEVENTYFIVE_MOVES, '75-move rule'),
+        ):
+            widget = QWidget()
+            layout = QHBoxLayout()
+            layout.setContentsMargins(10, 2, 10, 2)
+            checkbox = QCheckBox(label)
+            checkbox.setChecked(True)
+            layout.addWidget(checkbox)
+            spacer = QWidget()
+            spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            layout.addWidget(spacer)
+            widget.setLayout(layout)
+            widget_action = QWidgetAction(self.view)
+            widget_action.setDefaultWidget(widget)
+            claims_menu.addAction(widget_action)
+            self.view.claim_type_actions[claim_type] = checkbox
 
     def _build_alerts_menu(self, menu_bar) -> None:
         """Build Alerts menu with Sofia rule, flag fall, illegal move, and incorrect result."""

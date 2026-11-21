@@ -262,6 +262,11 @@ class ChessClaimView(QMainWindow):
         builder.build_menu()
 
         # Connect signals to update settings in controller
+        for claim_type, checkbox in self.claim_type_actions.items():
+            checkbox.stateChanged.connect(
+                lambda state, t=claim_type: self.controller.set_claim_enabled(t, bool(state))
+            )
+
         self.notifications_enabled_action.stateChanged.connect(
             lambda state: (setattr(self.controller, "notifications_enabled", bool(state)), self.controller.save_options())
         )

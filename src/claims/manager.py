@@ -1,4 +1,4 @@
-from typing import List, Any, Set
+from typing import List, Any, Set, Dict
 
 from src.models.events import ClaimEntry, ClaimType
 from src.claims.checkers import (
@@ -26,6 +26,22 @@ class ClaimsManager:
 
         # Track games that should not be rechecked (after 5-fold or 75-move)
         self.dont_check: Set[str] = set()
+
+        # Claim types the arbiter wants reported (Claims menu / options.json).
+        # Disabled checkers still run, their entries are only dropped: 5-fold /
+        # 75-move keep taking precedence over 3-fold / 50-move, and re-enabling
+        # a type does not flood the table with positions already played.
+        self.enabled: Dict[ClaimType, bool] = {t: True for t in self.TOGGLEABLE}
+
+    TOGGLEABLE = (
+        ClaimType.THREEFOLD,
+        ClaimType.FIVEFOLD,
+        ClaimType.FIFTY_MOVES,
+        ClaimType.SEVENTYFIVE_MOVES,
+    )
+
+    def is_enabled(self, claim_type: ClaimType) -> bool:
+        return self.enabled.get(claim_type, True)
 
     def run_all_claims(self, games: List[Any], claims_model: Any, game_index: int = 0) -> tuple:
         """Run all claim checkers and return collected entries."""
@@ -70,6 +86,9 @@ class ClaimsManager:
         # Filter out 50-move entries for positions that already have 75-move (75-move takes precedence)
         entries_75move_set = {(e.game_id, e.move_counter) for e in entries_75move}
         all_entries = [e for e in all_entries if not (e.type == ClaimType.FIFTY_MOVES and (e.game_id, e.move_counter) in entries_75move_set)]
+
+        # Drop claim types switched off by the arbiter.
+        all_entries = [e for e in all_entries if self.is_enabled(e.type)]
 
         return all_entries, self.dont_check, two_fold_shown
 

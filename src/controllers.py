@@ -119,6 +119,18 @@ class ChessClaimController(QApplication):
         self.games: List = []
         self.game_id_to_index: Dict[str, int] = {}
 
+    CLAIM_OPTION_KEYS = {
+        ClaimType.THREEFOLD: "claim_threefold",
+        ClaimType.FIVEFOLD: "claim_fivefold",
+        ClaimType.FIFTY_MOVES: "claim_fifty_moves",
+        ClaimType.SEVENTYFIVE_MOVES: "claim_seventyfive_moves",
+    }
+
+    def set_claim_enabled(self, claim_type: ClaimType, enabled: bool) -> None:
+        """Switch reporting of a claim type on/off (Claims menu)."""
+        self.claims_manager.enabled[claim_type] = enabled
+        self.save_options()
+
     def make_game_id(self, game) -> str:
         """
         Generates a stable identifier for a game based on PGN headers.
@@ -165,6 +177,10 @@ class ChessClaimController(QApplication):
 
             # Phone / Apple Watch push notifications
             self.push.settings = PushSettings.from_dict(data.get("push"))
+
+            # Claim types reported (3-fold, 5-fold, 50-move, 75-move)
+            for claim_type, key in self.CLAIM_OPTION_KEYS.items():
+                self.claims_manager.enabled[claim_type] = bool(data.get(key, True))
 
             # Scoresheet reminder
             self.scoresheet_reminder_enabled = data.get("scoresheet_enabled", False)
@@ -221,6 +237,8 @@ class ChessClaimController(QApplication):
             "sofia_move": self.sofia_rule_threshold,
             "push": self.push.settings.to_dict(),
         }
+        for claim_type, key in self.CLAIM_OPTION_KEYS.items():
+            data[key] = self.claims_manager.is_enabled(claim_type)
 
         with open(os.path.join(get_appdata_path(), 'options.json'), 'w') as file:
             json.dump(data, file, indent=4)
@@ -229,6 +247,10 @@ class ChessClaimController(QApplication):
         """Apply loaded settings to view checkboxes and spinboxes."""
         # Notification system
         self.view.notifications_enabled_action.setChecked(self.notifications_enabled)
+
+        # Claim types
+        for claim_type, checkbox in self.view.claim_type_actions.items():
+            checkbox.setChecked(self.claims_manager.is_enabled(claim_type))
         
         # Scoresheet reminder
         self.view.scoresheet_action.setChecked(self.scoresheet_reminder_enabled)
