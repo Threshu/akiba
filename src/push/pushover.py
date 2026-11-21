@@ -1,8 +1,9 @@
 """
 Pushover backend (https://pushover.net/api).
 
-Native iOS / Android / Apple Watch apps. Priority 2 (emergency) repeats the
-alert every ``retry`` seconds until it is acknowledged on the phone or watch.
+Native iOS / Android / Apple Watch apps. Priorities -2..1 are used; with
+Critical Alerts enabled in the iOS app, priority 1 (high) breaks through
+Silent / Focus mode without having to be acknowledged.
 
 Quick manual test (no GUI):
     set PUSHOVER_USER=...   set PUSHOVER_TOKEN=...
@@ -14,9 +15,7 @@ import logging
 
 import requests
 
-from src.push.base import (
-    PRIORITY_EMERGENCY, PushError, PushMessage, PushProvider,
-)
+from src.push.base import PushError, PushMessage, PushProvider, clamp_priority
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +28,9 @@ MESSAGE_LIMIT = 1024
 class PushoverProvider(PushProvider):
     name = "pushover"
 
-    def __init__(self, user_key: str, app_token: str,
-                 emergency_retry: int = 60, emergency_expire: int = 600) -> None:
+    def __init__(self, user_key: str, app_token: str) -> None:
         self.user_key = (user_key or "").strip()
         self.app_token = (app_token or "").strip()
-        self.emergency_retry = max(30, int(emergency_retry))
-        self.emergency_expire = max(self.emergency_retry, min(10800, int(emergency_expire)))
 
     def build_payload(self, message: PushMessage) -> dict:
         payload = {
@@ -42,11 +38,9 @@ class PushoverProvider(PushProvider):
             "user": self.user_key,
             "title": message.title[:TITLE_LIMIT],
             "message": message.body[:MESSAGE_LIMIT],
-            "priority": message.priority,
+            # Never 2 (emergency): it would repeat until acknowledged.
+            "priority": clamp_priority(message.priority),
         }
-        if message.priority == PRIORITY_EMERGENCY:
-            payload["retry"] = self.emergency_retry
-            payload["expire"] = self.emergency_expire
         return payload
 
     def send(self, message: PushMessage) -> None:

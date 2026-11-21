@@ -25,8 +25,7 @@ PGN_ERROR_RESET_SECONDS = 60
 
 def make_provider(settings: PushSettings) -> PushProvider:
     # Only Pushover for now; other providers plug in here.
-    return PushoverProvider(settings.user_key, settings.app_token,
-                            settings.emergency_retry, settings.emergency_expire)
+    return PushoverProvider(settings.user_key, settings.app_token)
 
 
 class _Signals(QObject):

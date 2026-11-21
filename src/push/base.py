@@ -23,14 +23,14 @@ PRIORITY_LOWEST = -2     # no alert at all
 PRIORITY_LOW = -1        # quiet
 PRIORITY_NORMAL = 0
 PRIORITY_HIGH = 1        # bypasses quiet hours
-PRIORITY_EMERGENCY = 2   # repeats until acknowledged
+# Pushover's priority 2 (emergency) repeats until acknowledged; deliberately
+# not used: alerts must arrive without having to confirm them.
 
 PRIORITY_LABELS = {
     PRIORITY_LOWEST: "Lowest (silent)",
     PRIORITY_LOW: "Low (quiet)",
     PRIORITY_NORMAL: "Normal",
     PRIORITY_HIGH: "High",
-    PRIORITY_EMERGENCY: "Emergency (repeat until ack)",
 }
 
 ERR_PGN = "ERR_PGN"
@@ -38,9 +38,9 @@ ERR_PGN = "ERR_PGN"
 # code -> (label, default priority), in the order shown in the settings dialog.
 EVENT_TYPES: Dict[str, Tuple[str, int]] = {
     "3FR": ("3-fold repetition", PRIORITY_HIGH),
-    "5FR": ("5-fold repetition", PRIORITY_EMERGENCY),
+    "5FR": ("5-fold repetition", PRIORITY_HIGH),
     "50M": ("50-move rule", PRIORITY_HIGH),
-    "75M": ("75-move rule", PRIORITY_EMERGENCY),
+    "75M": ("75-move rule", PRIORITY_HIGH),
     "STALEMATE": ("Stalemate", PRIORITY_NORMAL),
     "MATE": ("Checkmate", PRIORITY_NORMAL),
     "DEAD": ("Dead position", PRIORITY_NORMAL),
@@ -100,7 +100,7 @@ def _default_types() -> Dict[str, PushTypeSettings]:
 
 def clamp_priority(value) -> int:
     try:
-        return max(PRIORITY_LOWEST, min(PRIORITY_EMERGENCY, int(value)))
+        return max(PRIORITY_LOWEST, min(PRIORITY_HIGH, int(value)))
     except (TypeError, ValueError):
         return PRIORITY_NORMAL
 
@@ -112,8 +112,6 @@ class PushSettings:
     provider: str = "pushover"
     user_key: str = ""
     app_token: str = ""
-    emergency_retry: int = 60      # seconds between repeats (Pushover min 30)
-    emergency_expire: int = 600    # stop repeating after N seconds (max 10800)
     types: Dict[str, PushTypeSettings] = field(default_factory=_default_types)
 
     @property
@@ -133,8 +131,6 @@ class PushSettings:
             provider=str(data.get("provider") or "pushover"),
             user_key=str(data.get("user_key") or ""),
             app_token=str(data.get("app_token") or ""),
-            emergency_retry=_int(data.get("emergency_retry"), 60),
-            emergency_expire=_int(data.get("emergency_expire"), 600),
         )
         stored = data.get("types") or {}
         for code, default in settings.types.items():

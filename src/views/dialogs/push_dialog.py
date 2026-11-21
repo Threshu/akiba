@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea,
-    QSpinBox, QVBoxLayout, QWidget,
+    QVBoxLayout, QWidget,
 )
 
 from src.push.base import (
@@ -44,24 +44,8 @@ class PushSettingsDialog(QDialog):
         form.addRow("User key:", self.user_key)
         form.addRow("API token:", self.app_token)
 
-        emergency = QHBoxLayout()
-        self.retry = QSpinBox()
-        self.retry.setRange(30, 3600)
-        self.retry.setSuffix(" s")
-        self.retry.setValue(max(30, s.emergency_retry))
-        self.expire = QSpinBox()
-        self.expire.setRange(30, 10800)
-        self.expire.setSuffix(" s")
-        self.expire.setValue(min(10800, max(30, s.emergency_expire)))
-        emergency.addWidget(QLabel("repeat every"))
-        emergency.addWidget(self.retry)
-        emergency.addWidget(QLabel("for at most"))
-        emergency.addWidget(self.expire)
-        emergency.addStretch(1)
-        form.addRow("Emergency:", emergency)
-
-        hint = QLabel("iOS: enable Critical Alerts in the Pushover app settings so "
-                      "High / Emergency alerts break through Silent / Focus mode.")
+        hint = QLabel("iOS: enable Critical Alerts for High priority in the Pushover "
+                      "app settings so alerts break through Silent / Focus mode.")
         hint.setWordWrap(True)
         form.addRow(hint)
         layout.addWidget(account)
@@ -117,8 +101,6 @@ class PushSettingsDialog(QDialog):
         s.enabled = self.enabled_box.isChecked()
         s.user_key = self.user_key.text().strip()
         s.app_token = self.app_token.text().strip()
-        s.emergency_retry = self.retry.value()
-        s.emergency_expire = max(self.expire.value(), self.retry.value())
         for code, (enabled, priority, title, body) in self._rows.items():
             t = s.types[code]
             t.enabled = enabled.isChecked()
