@@ -37,8 +37,8 @@ if TYPE_CHECKING:
 class GameAnalysisItem:
     """Represents a game waiting for analysis in the queue."""
     
-    __slots__ = ["game", "declared_result", "final_fen", "game_id"]
-    
+    __slots__ = ["game", "declared_result", "final_fen", "game_id", "queue_key"]
+
     def __init__(self, game: Any, declared_result: str, final_fen: str):
         self.game = game
         self.declared_result = declared_result
@@ -51,6 +51,12 @@ class GameAnalysisItem:
             game.headers.get("White", ""),
             game.headers.get("Black", ""),
         ])
+        # A corrected result (or final position) is a new item to analyse
+        self.queue_key = analysis_key(self.game_id, declared_result, final_fen)
+
+
+def analysis_key(game_id: str, result: str, final_fen: str) -> str:
+    return f"{game_id}|{result}|{final_fen}"
 
 
 # ---------------------------------------------------------
@@ -77,11 +83,17 @@ class GameQueue:
             bool: True if added, False if already queued/analyzed
         """
         with self._lock:
-            if item.game_id in self._queued_games:
+            if item.queue_key in self._queued_games:
                 return False
-            self._queued_games.add(item.game_id)
+            self._queued_games.add(item.queue_key)
         self._queue.put(item)
         return True
+
+    def requeue(self, item) -> None:
+        """Queue a game again even if it was analysed before (periodic re-check)."""
+        with self._lock:
+            self._queued_games.add(item.queue_key)
+        self._queue.put(item)
     
     def get(self, timeout: float = 1.0):
         """Get an item from the queue with timeout."""
@@ -622,17 +634,17 @@ class Scan(QThread):
                             game.headers.get("Black", ""),
                         ])
                         
+                        # Final position; result + position decide whether it is new
+                        board = chess.Board()
+                        for move in game.mainline_moves():
+                            try:
+                                board.push(move)
+                            except (ValueError, chess.InvalidMoveError):
+                                break
+                        final_fen = board.fen()
+
                         # Check if already queued or analyzed (using GameQueue tracking)
-                        if not self.game_queue.is_queued(game_id):
-                            # Get final position FEN
-                            board = chess.Board()
-                            for move in game.mainline_moves():
-                                try:
-                                    board.push(move)
-                                except (ValueError, chess.InvalidMoveError):
-                                    break
-                            final_fen = board.fen()
-                            
+                        if not self.game_queue.is_queued(analysis_key(game_id, result, final_fen)):
                             # Create analysis item and add to queue
                             analysis_item = GameAnalysisItem(game, result, final_fen)
                             

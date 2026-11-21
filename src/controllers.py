@@ -786,9 +786,9 @@ class ChessClaimController(QApplication):
             if getattr(self, '_engine_stopped', False):
                 return
             if entry:
-                # Add to claims store and table
-                self.claims_store.add_claim(entry)
-                self.view.add_item_to_table(entry)
+                # Do not alert yet: results are often corrected on the board
+                # (kings placed again) a moment later - confirm after a delay
+                self._schedule_result_alert(analyzed_game, entry)
             # Update timestamp after each analysis
             current_time = datetime.now().strftime('%H:%M:%S')
             self.view.set_engine_status(True, current_time)
@@ -803,6 +803,67 @@ class ChessClaimController(QApplication):
         
         # Start the worker
         self.engine_worker.start()
+
+        # Periodic re-check of all finished games
+        from PyQt6.QtCore import QTimer
+        if getattr(self, "result_recheck_timer", None) is None:
+            self.result_recheck_timer = QTimer(self)
+            self.result_recheck_timer.timeout.connect(self._recheck_finished_results)
+        self.result_recheck_timer.start(self.RESULT_RECHECK_MINUTES * 60 * 1000)
+    # Suspicious result must still be in the PGN after this many seconds
+    RESULT_CONFIRM_SECONDS = 30
+    # Re-check all finished games with the engine this often (minutes)
+    RESULT_RECHECK_MINUTES = 10
+
+    def _schedule_result_alert(self, analyzed_game, entry) -> None:
+        from PyQt6.QtCore import QTimer
+        result = analyzed_game.headers.get("Result", "*")
+        plies = len(list(analyzed_game.mainline_moves()))
+        logger.info("suspicious result on board %s (%s), confirming in %d s",
+                    entry.board_number, result, self.RESULT_CONFIRM_SECONDS)
+        QTimer.singleShot(self.RESULT_CONFIRM_SECONDS * 1000,
+                          lambda: self._confirm_result_alert(entry, result, plies))
+
+    def _confirm_result_alert(self, entry, result: str, plies: int) -> None:
+        """Show the alert only if the same result and position are still in the PGN."""
+        if getattr(self, '_engine_stopped', False):
+            return
+        current = next((g for g in self.games if self.make_game_id(g) == entry.game_id), None)
+        if current is None:
+            return
+        if (current.headers.get("Result", "*") != result
+                or len(list(current.mainline_moves())) != plies):
+            logger.info("result on board %s changed (%s -> %s), no alert", entry.board_number,
+                        result, current.headers.get("Result", "*"))
+            return
+        shown = self.__dict__.setdefault("_result_alerts_shown", set())
+        key = (entry.game_id, result, plies)
+        if key in shown:
+            return
+        shown.add(key)
+        self.claims_store.add_claim(entry)
+        self.view.add_item_to_table(entry)
+
+    def _recheck_finished_results(self) -> None:
+        """Periodic re-analysis of every finished game (catches later changes)."""
+        import chess
+        from src.models.workers import GameAnalysisItem
+        if getattr(self, '_engine_stopped', False) or getattr(self, 'game_queue', None) is None:
+            return
+        if not self.possible_incorrect_result_enabled:
+            return
+        count = 0
+        for game in list(self.games):
+            result = game.headers.get("Result", "*")
+            if result == "*":
+                continue
+            board = chess.Board()
+            for move in game.mainline_moves():
+                board.push(move)
+            self.game_queue.requeue(GameAnalysisItem(game, result, board.fen()))
+            count += 1
+        logger.info("periodic engine re-check of %d finished games", count)
+
     def _update_engine_timestamp(self):
         """Update engine status with current timestamp when analysis completes."""
         if self.possible_incorrect_result_enabled:
