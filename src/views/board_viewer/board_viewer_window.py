@@ -959,7 +959,8 @@ class BoardViewerWindow(QMainWindow):
             return
         
         # Get Stockfish path - use default or from settings
-        engine_path = "engine/stockfish.exe"
+        from src.helpers import get_engine_path
+        engine_path = get_engine_path()
         
         # Show progress dialog
         self._progress_dialog = SPIProgressDialog(self)

@@ -9,6 +9,28 @@ from functools import lru_cache
 APP_NAME = "Akiba"
 
 
+def get_engine_path() -> str:
+    """
+    Absolute path of the Stockfish executable.
+
+    Order: engine/stockfish.exe next to the program (lets the arbiter drop in
+    a newer engine), the engine bundled inside the .exe, then the project's
+    engine/ folder when running from source. An absolute path is required:
+    Windows does not start "engine/stockfish.exe" given as a relative path.
+    """
+    candidates = []
+    if getattr(sys, "frozen", False):
+        candidates.append(os.path.join(os.path.dirname(sys.executable), "engine", "stockfish.exe"))
+        if hasattr(sys, "_MEIPASS"):
+            candidates.append(os.path.join(sys._MEIPASS, "engine", "stockfish.exe"))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates.append(os.path.join(project_root, "engine", "stockfish.exe"))
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return candidates[-1]
+
+
 @lru_cache(maxsize=None)
 def get_ssl_context(cafile: str) -> ssl.SSLContext:
     """

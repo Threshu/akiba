@@ -26,7 +26,8 @@ class ReminderManager:
         self.flag_fall_checker = FlagFallChecker()
         self.sofia_rule_checker = SofiaRuleChecker()
         self.illegal_move_checker = IllegalMoveChecker()
-        self.mismatched_result_checker = MismatchedResultChecker(engine_path="engine/stockfish.exe")
+        from src.helpers import get_engine_path
+        self.mismatched_result_checker = MismatchedResultChecker(engine_path=get_engine_path())
 
     def get_enabled_checkers(self) -> Dict[str, Any]:
         return {

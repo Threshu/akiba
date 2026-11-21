@@ -8,6 +8,18 @@ This folder should contain a file named **`stockfish.exe`**.
 
 The application has been tested with:
 - `stockfish_15_x64_avx2.exe`
+- `stockfish_20011801_x64.exe` (Stockfish 11, generic x64, 1.2 MB) - small engine
+  bundled into the Windows build so result verification works out of the box.
+  From `stockfish-11-win.zip` in the official "older versions" archive linked
+  on https://stockfishchess.org/download/. Put its licence next to it as
+  `Stockfish-COPYING.txt` (GPL v3, from `Copying.txt` in the same zip).
+
+## Lookup order
+
+`helpers.get_engine_path()` uses the first file that exists:
+1. `engine/stockfish.exe` next to the built program (drop in a newer engine here)
+2. the engine bundled inside the .exe
+3. `engine/stockfish.exe` in the project folder (running from source)
 
 ## Setup Steps
 

@@ -9,7 +9,7 @@ from typing import List, Dict
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import QApplication
 
-from src.helpers import get_appdata_path, Status
+from src.helpers import get_appdata_path, Status, get_engine_path
 from src.claims.manager import ClaimsManager
 from src.models.workers import CheckDownload, DownloadGames, MakePgn, Scan, Stop, DownloadLiveChessGames
 from src.models.events import ClaimEntry, ClaimType, ClaimsStore
@@ -778,7 +778,7 @@ class ChessClaimController(QApplication):
         self.view.set_engine_status(True, current_time)
         
         # Create and start a single persistent worker for the queue
-        self.engine_worker = EngineWorker("engine/stockfish.exe", self.game_queue)
+        self.engine_worker = EngineWorker(get_engine_path(), self.game_queue)
         
         def on_analysis_complete(analyzed_game, entry):
             """Callback when analysis finishes."""
