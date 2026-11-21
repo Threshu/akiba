@@ -22,6 +22,40 @@ if TYPE_CHECKING:
     from src.controllers import ChessClaimController
 
 
+# Row colour by how urgently the arbiter has to react:
+#   critical - game is over / must be stopped now (automatic results, flag, illegal move)
+#   claim    - claimable draw or rule violation to check
+#   reminder - early warnings and routine reminders
+ROW_PRIORITY = {
+    ClaimType.FIVEFOLD: "critical",
+    ClaimType.SEVENTYFIVE_MOVES: "critical",
+    ClaimType.CHECKMATE_CLAIM: "critical",
+    ClaimType.STALEMATE_CLAIM: "critical",
+    ClaimType.DEAD_POSITION_CLAIM: "critical",
+    ClaimType.FLAG_FALL_REMINDER: "critical",
+    ClaimType.ILLEGAL_MOVE: "critical",
+    ClaimType.THREEFOLD: "claim",
+    ClaimType.FIFTY_MOVES: "claim",
+    ClaimType.SOFIA_RULE: "claim",
+    ClaimType.MISMATCHED_RESULT: "claim",
+    ClaimType.TWO_FOLD_WARNING: "reminder",
+    ClaimType.FORTYFIVE_MOVES_WARNING: "reminder",
+    ClaimType.SCORESHEET_REMINDER: "reminder",
+    ClaimType.TIMECONTROL_REMINDER: "reminder",
+    ClaimType.LOW_TIME_REMINDER: "reminder",
+}
+
+# (background, text) per priority; acknowledged rows are greyed out
+ROW_COLORS = {
+    "critical": ("#f8d0d0", "#7a0000"),
+    "claim": ("#ffe8bf", "#5c3b00"),
+    "reminder": ("#dde9f7", "#1f3a5c"),
+    "acknowledged": ("#ffffff", "#9a9a9a"),
+}
+
+PRIORITY_ROLE = Qt.ItemDataRole.UserRole + 1
+
+
 class ClaimsTable(QWidget):
     """
     Claims table component with styling and interaction logic.
@@ -196,6 +230,11 @@ class ClaimsTable(QWidget):
 
         self.model.appendRow(row)
 
+        # Colour the whole row by priority
+        new_row = self.model.rowCount() - 1
+        self.model.item(new_row, 0).setData(ROW_PRIORITY.get(entry.type, "reminder"), PRIORITY_ROLE)
+        self._paint_row(new_row)
+
         # Store game and move index for Board Viewer navigation
         first_item = self.model.item(self.model.rowCount() - 1, 0)
         first_item.setData({
@@ -260,6 +299,23 @@ class ClaimsTable(QWidget):
             ack_item.setText("")
         else:
             ack_item.setText("✅")
+        self._paint_row(row)
+
+    def _paint_row(self, row: int) -> None:
+        """Apply the priority colour (or grey when acknowledged) to every cell of a row."""
+        from PyQt6.QtGui import QBrush
+        first = self.model.item(row, 0)
+        if first is None:
+            return
+        ack_item = self.model.item(row, 6)
+        acknowledged = ack_item is not None and ack_item.text() == "✅"
+        priority = "acknowledged" if acknowledged else (first.data(PRIORITY_ROLE) or "reminder")
+        background, foreground = ROW_COLORS[priority]
+        for col in range(self.model.columnCount()):
+            item = self.model.item(row, col)
+            if item is not None:
+                item.setBackground(QBrush(QColor(background)))
+                item.setForeground(QBrush(QColor(foreground)))
 
     @staticmethod
     def _create_standard_item(item: str, idx: int) -> QStandardItem:
@@ -294,12 +350,6 @@ class ClaimsTable(QWidget):
             font = standard_item.font()
             font.setPixelSize(15)  # Slightly larger for emoji visibility
             standard_item.setFont(font)
-
-        # Red color for strong claims (automatic game-ending results)
-        if idx == 2 and item in [tr(x) for x in ("5-fold repetition", "75-move rule", "Stalemate", "Checkmate", "Dead position")]:
-            brush = standard_item.foreground()
-            brush.setColor(QColor("red"))
-            standard_item.setForeground(brush)
 
         return standard_item
 
