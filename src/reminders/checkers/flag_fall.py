@@ -13,9 +13,55 @@ class FlagFallChecker(BaseChecker):
     This is typically indicated in PGN comments or by clock time reaching 0.
     """
 
+    # A clock showing 0:00:00 must stay at zero this long before the alert:
+    # while the arbiter adjusts a DGT clock (e.g. adds time after a claim)
+    # it briefly reports 0:00:00.
+    GRACE_SECONDS = 60
+
     def __init__(self) -> None:
         super().__init__()
         self.shown_reminders: set = set()
+        self._zero_since: Dict[str, tuple] = {}  # gid -> (node index, first seen)
+
+    @staticmethod
+    def _seconds(clock_time: str | None) -> int | None:
+        if not clock_time:
+            return None
+        try:
+            h, m, s = (int(x) for x in clock_time.split(":"))
+            return h * 3600 + m * 60 + s
+        except ValueError:
+            return None
+
+    def _confirmed_zero(self, gid: str, clocks: list) -> int | None:
+        """
+        Index of a node whose 0:00:00 is a real flag fall, or None.
+
+        clocks: [(node_index, seconds)] in game order. A zero followed later by
+        a non-zero time of the same player was a clock adjustment, not a flag.
+        A remaining zero is confirmed once it has been seen for GRACE_SECONDS.
+        """
+        import time
+        candidate = None
+        for pos, (idx, seconds) in enumerate(clocks):
+            if seconds != 0:
+                continue
+            later_same_player = [s for i, s in clocks[pos + 1:] if i % 2 == idx % 2]
+            if any(s > 0 for s in later_same_player):
+                continue  # time was added / clock set - not a flag fall
+            candidate = idx
+            break
+        if candidate is None:
+            self._zero_since.pop(gid, None)
+            return None
+        now = time.monotonic()
+        seen_idx, first_seen = self._zero_since.get(gid, (None, now))
+        if seen_idx != candidate:
+            first_seen = now  # a different zero than before - restart the grace period
+        self._zero_since[gid] = (candidate, first_seen)
+        if now - first_seen >= self.GRACE_SECONDS:
+            return candidate
+        return None
 
     def make_game_id(self, game: Any) -> str:
         """Generate stable game identifier from PGN headers."""
@@ -70,13 +116,19 @@ class FlagFallChecker(BaseChecker):
         
         # Check for flag fall indicators in PGN comments
         moves_list = list(game.mainline_moves())
+
+        clocks = []
+        for idx, node in enumerate(game.mainline()):
+            seconds = self._seconds(self.extract_clock_from_node(node))
+            if seconds is not None:
+                clocks.append((idx, seconds))
+        flag_idx = self._confirmed_zero(gid, clocks)
         
         for idx, node in enumerate(game.mainline()):
             clock_time = self.extract_clock_from_node(node)
             
-            # Flag fall triggered when clock reaches 0:00:00 (normalized format)
-            normalized_time = self.normalize_clock_time(clock_time)
-            if normalized_time == "00:00:00":
+            # Flag fall: clock at 0:00:00 that stayed there (see _confirmed_zero)
+            if idx == flag_idx:
                 reminder_key = f"{gid}:flagfall"
                 
                 if reminder_key not in self.shown_reminders:
