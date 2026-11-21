@@ -15,9 +15,14 @@ class FiftyMovesChecker(BaseChecker):
     includes the move number of the last irreversible move.
     """
 
+    DEFAULT_THRESHOLD = 50
+
     def __init__(self) -> None:
         super().__init__()
         self.seen_positions: Set[tuple] = set()
+        # Moves per player without capture / pawn move before the claim is
+        # reported. FIDE: 50; some arbiters prefer a later alert (e.g. 55).
+        self.threshold_moves = self.DEFAULT_THRESHOLD
 
     @staticmethod
     def make_game_id(game, game_index: int = None) -> str:
@@ -57,7 +62,8 @@ class FiftyMovesChecker(BaseChecker):
             move_counter += 1
 
             # Check for 50-move rule (claimable draw, not automatic)
-            if board.is_fifty_moves():
+            if (board.halfmove_clock >= 2 * self.threshold_moves
+                    and any(board.generate_legal_moves())):
                 fen = board.fen()
                 key = (ClaimType.FIFTY_MOVES, gid, move_counter, fen)
 

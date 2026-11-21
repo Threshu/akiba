@@ -297,6 +297,7 @@ class ChessClaimView(QMainWindow):
             checkbox.stateChanged.connect(
                 lambda state, t=claim_type: self.controller.set_claim_enabled(t, bool(state))
             )
+        self.fifty_moves_spin.valueChanged.connect(self.controller.set_fifty_moves_threshold)
 
         self.notifications_enabled_action.stateChanged.connect(
             lambda state: (setattr(self.controller, "notifications_enabled", bool(state)), self.controller.save_options())

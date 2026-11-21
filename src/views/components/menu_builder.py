@@ -37,6 +37,14 @@ class MenuBarBuilder:
             spacer = QWidget()
             spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             layout.addWidget(spacer)
+            if claim_type == ClaimType.FIFTY_MOVES:
+                # Moves without capture / pawn move before the claim is shown
+                self.view.fifty_moves_spin = QSpinBox()
+                self.view.fifty_moves_spin.setRange(50, 74)
+                self.view.fifty_moves_spin.setValue(50)
+                self.view.fifty_moves_spin.setSuffix(' moves')
+                self.view.fifty_moves_spin.setFixedSize(90, 24)
+                layout.addWidget(self.view.fifty_moves_spin)
             widget.setLayout(layout)
             widget_action = QWidgetAction(self.view)
             widget_action.setDefaultWidget(widget)

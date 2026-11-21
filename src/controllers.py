@@ -130,6 +130,11 @@ class ChessClaimController(QApplication):
         ClaimType.SEVENTYFIVE_MOVES: "claim_seventyfive_moves",
     }
 
+    def set_fifty_moves_threshold(self, moves: int) -> None:
+        """Moves without capture / pawn move before a 50-move claim is shown."""
+        self.claims_manager.fifty_moves_checker.threshold_moves = int(moves)
+        self.save_options()
+
     def set_claim_enabled(self, claim_type: ClaimType, enabled: bool) -> None:
         """Switch reporting of a claim type on/off (Claims menu)."""
         self.claims_manager.enabled[claim_type] = enabled
@@ -185,6 +190,8 @@ class ChessClaimController(QApplication):
             # Claim types reported (3-fold, 5-fold, 50-move, 75-move)
             for claim_type, key in self.CLAIM_OPTION_KEYS.items():
                 self.claims_manager.enabled[claim_type] = bool(data.get(key, True))
+            self.claims_manager.fifty_moves_checker.threshold_moves = min(74, max(50, int(
+                data.get("claim_fifty_moves_threshold", 50))))
 
             # Scoresheet reminder
             self.scoresheet_reminder_enabled = data.get("scoresheet_enabled", False)
@@ -243,6 +250,7 @@ class ChessClaimController(QApplication):
         }
         for claim_type, key in self.CLAIM_OPTION_KEYS.items():
             data[key] = self.claims_manager.is_enabled(claim_type)
+        data["claim_fifty_moves_threshold"] = self.claims_manager.fifty_moves_checker.threshold_moves
 
         with open(os.path.join(get_appdata_path(), 'options.json'), 'w') as file:
             json.dump(data, file, indent=4)
@@ -255,6 +263,7 @@ class ChessClaimController(QApplication):
         # Claim types
         for claim_type, checkbox in self.view.claim_type_actions.items():
             checkbox.setChecked(self.claims_manager.is_enabled(claim_type))
+        self.view.fifty_moves_spin.setValue(self.claims_manager.fifty_moves_checker.threshold_moves)
         
         # Scoresheet reminder
         self.view.scoresheet_action.setChecked(self.scoresheet_reminder_enabled)
