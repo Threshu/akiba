@@ -124,6 +124,11 @@ class ChessClaimController(QApplication):
         # Phone / Apple Watch push notifications (Pushover)
         self.push = PushNotifier()
 
+        # Followed players (notifications about their games)
+        from src.follow import FollowSettings, GameEndTracker
+        self.follow = FollowSettings()
+        self._game_end_tracker = GameEndTracker()
+
         # ChessManager tournaments used to verify transmission results
         self.chessmanager_urls: List[str] = []
         self.verify_worker = None
@@ -197,6 +202,8 @@ class ChessClaimController(QApplication):
             # Phone / Apple Watch push notifications
             self.push.settings = PushSettings.from_dict(data.get("push"))
             self.chessmanager_urls = [str(u) for u in data.get("chessmanager_urls", []) if u]
+            from src.follow import FollowSettings
+            self.follow = FollowSettings.from_dict(data.get("follow"))
 
             # Claim types reported (3-fold, 5-fold, 50-move, 75-move)
             for claim_type, key in self.CLAIM_OPTION_KEYS.items():
@@ -260,6 +267,7 @@ class ChessClaimController(QApplication):
             "push": self.push.settings.to_dict(),
             "language": self.language,
             "chessmanager_urls": self.chessmanager_urls,
+            "follow": self.follow.to_dict(),
         }
         for claim_type, key in self.CLAIM_OPTION_KEYS.items():
             data[key] = self.claims_manager.is_enabled(claim_type)
@@ -414,6 +422,44 @@ class ChessClaimController(QApplication):
         self.verification_dialog = VerificationResultsDialog(report, games, open_game, self.view)
         self.verification_dialog.show()
         self.verification_dialog.raise_()
+
+    # -------------------------------------------------------------------------
+    # FOLLOWED PLAYERS
+    # -------------------------------------------------------------------------
+
+    def on_follow_players_clicked(self) -> None:
+        from src.views.dialogs.follow_dialog import FollowPlayersDialog
+        if not self.games:
+            self.on_pgn_updated()
+        dialog = FollowPlayersDialog(self.follow, self.games, self.view)
+        if dialog.exec():
+            self.follow = dialog.get_settings()
+            self.save_options()
+            logger.info("following %d players, events: %s", len(self.follow.players),
+                        ", ".join(sorted(self.follow.events)))
+
+    def _notify_followed_game_ends(self) -> None:
+        from src.follow import GAME_END
+        from src.i18n import tr
+        finished = self._game_end_tracker.new_results(self.games, self.make_game_id)
+        if GAME_END not in self.follow.events or not self.follow.players:
+            return
+        for game in finished:
+            white = game.headers.get("White", "")
+            black = game.headers.get("Black", "")
+            if not self.follow.followed_in(white, black):
+                continue
+            result = game.headers.get("Result", "*")
+            board = ClaimsManager.get_board_number(game)
+            logger.info("followed player finished: #%s %s - %s %s", board, white, black, result)
+            self.push.notify_game_end(board, white, black, result)
+            if self.notifications_enabled:
+                from src.notifications.windows_toast import show_toast
+                from src.helpers import resource_path
+                toaster = getattr(self.view.claims_table_widget, "notification", None)
+                if sys.platform == "win32":
+                    show_toast(toaster, "\u2605 " + tr("Game finished") + f" #{board}: {result}",
+                               f"{white} - {black}", resource_path("notification_icon.png"))
 
     def on_language_selected(self, language: str) -> None:
         """Store the UI language; it is applied on the next start."""
@@ -622,6 +668,9 @@ class ChessClaimController(QApplication):
         # Reload viewer if open
         if self.board_viewer is not None:
             self.board_viewer.reload_pgn(pgn_path)
+
+        # Games of followed players that just finished
+        self._notify_followed_game_ends()
 
         # Process illegal moves detected during parsing and add to claims -
         # only once the move is completed (clock pressed / next move played)

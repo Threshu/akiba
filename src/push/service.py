@@ -68,8 +68,12 @@ class PushNotifier:
             return
         self._pool.start(_SendTask(make_provider(self.settings), message, on_done))
 
-    def notify_claim(self, entry) -> None:
-        """Send a claim / reminder entry (ClaimEntry) if its type is enabled."""
+    def notify_claim(self, entry, follow=None) -> None:
+        """
+        Send a claim / reminder entry (ClaimEntry) if its type is enabled.
+        For a followed player and an event chosen in the follow settings it is
+        sent even when the type is off, with a star in the title.
+        """
         if not self.active or getattr(entry, "cleared", False):
             return
         code = CLAIM_TYPE_TO_CODE.get(entry.type)
@@ -80,8 +84,22 @@ class PushNotifier:
             return
         self._sent_keys.add(key)
         white, black = split_players(entry.players)
-        self._dispatch(build_message(self.settings, code, str(entry.board_number),
-                                     white, black, str(entry.move)))
+        parts = (entry.game_id or "").split("|")
+        full_white, full_black = (parts[4], parts[5]) if len(parts) >= 6 else (white, black)
+        followed = bool(follow and code in follow.events and follow.followed_in(full_white, full_black))
+        message = build_message(self.settings, code, str(entry.board_number),
+                                white, black, str(entry.move), force=followed)
+        if message is not None and followed:
+            message = PushMessage("★ " + message.title, message.body, message.priority)
+        self._dispatch(message)
+
+    def notify_game_end(self, board: str, white: str, black: str, result: str) -> None:
+        """A game of a followed player has finished."""
+        if not self.active:
+            return
+        message = build_message(self.settings, "GAME_END", board, white, black, result=result, force=True)
+        if message is not None:
+            self._dispatch(PushMessage("★ " + message.title, message.body, message.priority))
 
     def notify_pgn_error(self, url: str, reason: str) -> None:
         """A PGN source keeps failing (reported once per failure series by DownloadGames)."""

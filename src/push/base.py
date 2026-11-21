@@ -54,6 +54,7 @@ EVENT_TYPES: Dict[str, Tuple[str, int]] = {
     "TC": ("Time control", PRIORITY_NORMAL),
     "LOWTIME": ("Low on time", PRIORITY_NORMAL),
     ERR_PGN: ("PGN download error", PRIORITY_HIGH),
+    "GAME_END": ("Followed player: game finished", PRIORITY_HIGH),
 }
 
 CLAIM_TYPE_TO_CODE: Dict[ClaimType, str] = {
@@ -78,6 +79,8 @@ CLAIM_TYPE_TO_CODE: Dict[ClaimType, str] = {
 DEFAULT_TITLE = "{code} #{board}"
 DEFAULT_BODY = "{white} - {black}\n{move}"
 ERR_PGN_TITLE = "{type}"
+GAME_END_TITLE = "#{board} {result}"
+GAME_END_BODY = "{white} - {black}"
 ERR_PGN_BODY = "PGN download failed. Check the source URL / network."
 
 # Placeholders offered in the template editor: (key, label shown to the arbiter)
@@ -89,9 +92,11 @@ TEMPLATE_FIELDS = (
     ("black", "Black"),
     ("players", "White - Black"),
     ("move", "Move"),
+    ("result", "Result"),
 )
 
-SAMPLE_VALUES = {"board": "6", "white": "Nowak Jan", "black": "Kowalski Piotr", "move": "34. Nf3"}
+SAMPLE_VALUES = {"board": "6", "white": "Nowak Jan", "black": "Kowalski Piotr", "move": "34. Nf3",
+                 "result": "1-0"}
 
 
 @dataclass
@@ -105,6 +110,10 @@ class PushTypeSettings:
 def _default_types() -> Dict[str, PushTypeSettings]:
     types = {}
     for code, (_, priority) in EVENT_TYPES.items():
+        if code == "GAME_END":
+            types[code] = PushTypeSettings(priority=priority, title_template=GAME_END_TITLE,
+                                           body_template=GAME_END_BODY)
+            continue
         if code == ERR_PGN:
             from src.i18n import tr
             types[code] = PushTypeSettings(priority=priority, title_template=ERR_PGN_TITLE,
@@ -194,22 +203,24 @@ def split_players(players: str) -> Tuple[str, str]:
 
 
 def build_message(settings: PushSettings, code: str, board: str = "",
-                  white: str = "", black: str = "", move: str = "") -> Optional[PushMessage]:
-    """Render the message for an event, or None when the type is switched off."""
+                  white: str = "", black: str = "", move: str = "", result: str = "",
+                  force: bool = False) -> Optional[PushMessage]:
+    """Render the message for an event, or None when the type is switched off (unless forced)."""
     type_settings = settings.types.get(code)
-    if type_settings is None or not type_settings.enabled:
+    if type_settings is None or (not type_settings.enabled and not force):
         return None
-    return render_message(code, type_settings, board, white, black, move)
+    return render_message(code, type_settings, board, white, black, move, result)
 
 
 def render_message(code: str, type_settings: PushTypeSettings, board: str = "",
-                   white: str = "", black: str = "", move: str = "") -> PushMessage:
+                   white: str = "", black: str = "", move: str = "", result: str = "") -> PushMessage:
     from src.i18n import tr
     label = tr(EVENT_TYPES.get(code, (code, 0))[0])
     players = f"{white} - {black}" if black else white
     values = {
         "code": code, "type": label, "board": board or "",
         "white": white, "black": black, "players": players, "move": move or "",
+        "result": result or "",
     }
     title = _render(type_settings.title_template, values).strip().rstrip("#").strip()
     body = _render(type_settings.body_template, values).strip()

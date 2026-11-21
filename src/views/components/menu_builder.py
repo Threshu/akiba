@@ -17,6 +17,7 @@ class MenuBarBuilder:
         self._build_reminders_menu(menu_bar)
         self._build_notifications_menu(menu_bar)
         self._build_results_menu(menu_bar)
+        self._build_players_menu(menu_bar)
         self._build_help_menu(menu_bar)
 
     def _build_claims_menu(self, menu_bar) -> None:
@@ -232,6 +233,13 @@ class MenuBarBuilder:
         sources_action = QAction(tr('ChessManager tournaments...'), self.view)
         sources_action.triggered.connect(self.view.controller.on_chessmanager_sources_clicked)
         results_menu.addAction(sources_action)
+
+    def _build_players_menu(self, menu_bar) -> None:
+        """Followed players."""
+        players_menu = menu_bar.addMenu(tr('Pla&yers'))
+        follow_action = QAction(tr('Followed players...'), self.view)
+        follow_action.triggered.connect(self.view.controller.on_follow_players_clicked)
+        players_menu.addAction(follow_action)
 
     def _build_help_menu(self, menu_bar) -> None:
         """Build Help menu with About and User Manual."""
