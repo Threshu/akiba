@@ -65,8 +65,14 @@ class ClaimsTable(QWidget):
         else:
             self.notification = None
 
+        self._filter_text = ""
+
         self._setup_table()
         self._build_layout()
+
+        # Keep the filter applied when rows are added / removed
+        self.model.rowsInserted.connect(lambda *_: self.apply_filter())
+        self.model.rowsRemoved.connect(lambda *_: self.apply_filter())
 
     def keyPressEvent(self, event):
         """
@@ -359,6 +365,27 @@ class ClaimsTable(QWidget):
                     self.notification.show_toast(toast)
                 except Exception:
                     pass
+
+    # Columns searched by the filter: claim type, board, players, move
+    FILTER_COLUMNS = (2, 3, 4, 5)
+
+    def set_filter(self, text: str) -> None:
+        """Show only rows whose type, board, players or move contain the text."""
+        self._filter_text = (text or "").strip().lower()
+        self.apply_filter()
+
+    def apply_filter(self) -> None:
+        from PyQt6.QtCore import QModelIndex
+        needle = self._filter_text
+        for row in range(self.model.rowCount()):
+            visible = True
+            if needle:
+                visible = any(
+                    needle in (self.model.item(row, col).text().lower()
+                               if self.model.item(row, col) else "")
+                    for col in self.FILTER_COLUMNS
+                )
+            self.table.setRowHidden(row, QModelIndex(), not visible)
 
     def remove_rows_by_claim_type(self, claim_type: str, players: str) -> None:
         """

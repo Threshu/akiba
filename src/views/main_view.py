@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QSpinBox,
     QSizePolicy,
+    QLineEdit,
 )
 
 from src.helpers import resource_path, Status
@@ -227,6 +228,14 @@ class ChessClaimView(QMainWindow):
         # Main layout - use claims_table_widget.table from component
         container_layout = QVBoxLayout()
         container_layout.setSpacing(0)
+
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText("Filter by player, board or claim...")
+        self.filter_edit.setClearButtonEnabled(True)
+        self.filter_edit.textChanged.connect(self.claims_table_widget.set_filter)
+        container_layout.addWidget(self.filter_edit)
+        container_layout.addSpacing(4)
+
         container_layout.addWidget(self.claims_table_widget.table)
         container_layout.addWidget(self.button_box)
 
@@ -253,8 +262,30 @@ class ChessClaimView(QMainWindow):
 
     def set_gui(self) -> None:
         """Initialize all GUI components (wrapper for backward compatibility)."""
-        # All initialization is already done in __init__
-        pass
+        # All initialization is already done in __init__; restore last size / position
+        self.restore_window_geometry()
+
+    @staticmethod
+    def _geometry_path() -> str:
+        import os
+        from src.helpers import get_appdata_path
+        return os.path.join(get_appdata_path(), "window_geometry.dat")
+
+    def restore_window_geometry(self) -> None:
+        """Restore window size and position saved on the last clean close."""
+        from PyQt6.QtCore import QByteArray
+        try:
+            with open(self._geometry_path(), "rb") as f:
+                self.restoreGeometry(QByteArray(f.read()))
+        except OSError:
+            pass  # first start: keep the default centred window
+
+    def save_window_geometry(self) -> None:
+        try:
+            with open(self._geometry_path(), "wb") as f:
+                f.write(bytes(self.saveGeometry()))
+        except OSError:
+            pass
 
     def create_menu(self) -> None:
         """Create the main menu bar using MenuBarBuilder."""
@@ -567,20 +598,20 @@ class ChessClaimView(QMainWindow):
                 exit_dialog.setWindowTitle("Warning")
                 exit_dialog.setText("Scanning in Progress")
                 exit_dialog.setInformativeText("Do you want to quit?")
-                exit_dialog.setIcon(exit_dialog.Warning)
-                exit_dialog.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-                exit_dialog.setDefaultButton(QMessageBox.Cancel)
+                exit_dialog.setIcon(QMessageBox.Icon.Warning)
+                exit_dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+                exit_dialog.setDefaultButton(QMessageBox.StandardButton.Cancel)
 
                 # --- button width adjustment ---
-                yes_button = exit_dialog.button(QMessageBox.Yes)
-                cancel_button = exit_dialog.button(QMessageBox.Cancel)
+                yes_button = exit_dialog.button(QMessageBox.StandardButton.Yes)
+                cancel_button = exit_dialog.button(QMessageBox.StandardButton.Cancel)
                 yes_button.setMinimumWidth(100)
                 cancel_button.setMinimumWidth(100)
                 # --------------------------------
 
                 replay = exit_dialog.exec()
 
-                if replay == QMessageBox.Yes:
+                if replay == QMessageBox.StandardButton.Yes:
                     event.accept()
                 else:
                     event.ignore()
@@ -588,6 +619,8 @@ class ChessClaimView(QMainWindow):
                 event.accept()
         except Exception:
             event.accept()
+        if event.isAccepted():
+            self.save_window_geometry()
 
     def load_about_dialog(self) -> None:
         """Display the About dialog."""
