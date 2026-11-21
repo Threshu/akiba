@@ -122,8 +122,9 @@ class ClaimsTable(QWidget):
             selected_rows = self.get_selected_rows()
             
             if selected_rows:
-                # Toggle Ack status for the first selected row
-                self.toggle_ack(selected_rows[0])
+                # Space acknowledges all selected rows (or un-acknowledges if all already are)
+                all_acked = all(self._is_acked(r) for r in selected_rows)
+                self.set_ack(selected_rows, not all_acked)
                 return  # Event handled
         
         super().keyPressEvent(event)
@@ -267,23 +268,87 @@ class ClaimsTable(QWidget):
             return
         
         row = index.row()
-        
-        # Create simple context menu with only Add/Remove ✅ option
         context_menu = QMenu(self)
-        
-        # Check current Ack status (Ack column is at position 6 - the last one)
-        ack_item = self.model.item(row, 6)
-        has_ack = ack_item.text() == "✅"
-        
-        if has_ack:
-            action = context_menu.addAction(tr("Unacknowledge"))
+
+        # Right-click on a row outside the selection acts on that row only
+        selected = self.get_selected_rows()
+        rows = selected if row in selected else [row]
+
+        if len(rows) == 1:
+            has_ack = self._is_acked(row)
+            action = context_menu.addAction(tr("Unacknowledge") if has_ack else tr("Acknowledge"))
+            action.triggered.connect(lambda: self.toggle_ack(row))
         else:
-            action = context_menu.addAction(tr("Acknowledge"))
-        
-        action.triggered.connect(lambda: self.toggle_ack(row))
-        
+            context_menu.addAction(tr("Acknowledge selected ({n})").format(n=len(rows))) \
+                .triggered.connect(lambda: self.set_ack(rows, True))
+            context_menu.addAction(tr("Unacknowledge selected ({n})").format(n=len(rows))) \
+                .triggered.connect(lambda: self.set_ack(rows, False))
+            context_menu.addAction(tr("Remove selected ({n})").format(n=len(rows))) \
+                .triggered.connect(lambda: self.remove_rows(rows))
+
+        # Whole round of the clicked row (e.g. after round 1 when round 2 starts)
+        rnd = self.row_round(row)
+        if rnd:
+            round_rows = self.rows_of_round(rnd)
+            context_menu.addSeparator()
+            context_menu.addAction(tr("Acknowledge all of round {round} ({n})").format(
+                round=rnd, n=len(round_rows))).triggered.connect(lambda: self.set_ack(round_rows, True))
+            context_menu.addAction(tr("Remove all of round {round} ({n})").format(
+                round=rnd, n=len(round_rows))).triggered.connect(
+                lambda: self._confirm_remove_round(rnd, round_rows))
+
         # Show menu at global position
         context_menu.exec(self.table.mapToGlobal(pos))
+
+    # ----------------------------------------------------------- bulk actions
+    def _is_acked(self, row: int) -> bool:
+        ack_item = self.model.item(row, 6)
+        return ack_item is not None and ack_item.text() == "✅"
+
+    def row_round(self, row: int) -> str:
+        """Round number of a row ("1" for Round "1.4"), from the game's PGN headers."""
+        data = self.model.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
+        parts = (data.get("game_id") or "").split("|")
+        if len(parts) < 4:
+            return ""
+        rnd = parts[3].strip()
+        if not rnd or rnd in ("?", "-", "None"):
+            return ""
+        return rnd.split(".")[0]
+
+    def rows_of_round(self, rnd: str) -> list:
+        return [r for r in range(self.model.rowCount()) if self.row_round(r) == rnd]
+
+    def set_ack(self, rows, acknowledged: bool) -> None:
+        """Acknowledge / unacknowledge several rows at once."""
+        for row in rows:
+            ack_item = self.model.item(row, 6)
+            if ack_item is None:
+                continue
+            ack_item.setText("✅" if acknowledged else "")
+            self._paint_row(row)
+
+    def remove_rows(self, rows) -> None:
+        """Remove rows and mark their claims cleared so they do not come back."""
+        for row in sorted(set(rows), reverse=True):
+            data = self.model.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            game_index = data.get("game_index") if data else None
+            if game_index is not None:
+                self.claims_store.mark_cleared(game_index)
+            self.model.removeRow(row)
+        for i in range(self.model.rowCount()):
+            self.model.item(i, 0).setText(str(i + 1))
+        self.table.clearSelection()
+
+    def _confirm_remove_round(self, rnd: str, rows) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+        answer = QMessageBox.question(
+            self, "Akiba",
+            tr("Remove all {n} entries of round {round} from the table?").format(n=len(rows), round=rnd),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer == QMessageBox.StandardButton.Yes:
+            self.remove_rows(rows)
 
     def toggle_ack(self, row):
         """

@@ -102,6 +102,12 @@ PL = {
     "Acknowledge": "Potwierdź",
     "Unacknowledge": "Cofnij potwierdzenie",
     "Filter by player, board or claim...": "Filtruj po zawodniku, szachownicy lub typie...",
+    "Acknowledge selected ({n})": "Potwierdź zaznaczone ({n})",
+    "Unacknowledge selected ({n})": "Cofnij potwierdzenie zaznaczonych ({n})",
+    "Remove selected ({n})": "Usuń zaznaczone ({n})",
+    "Acknowledge all of round {round} ({n})": "Potwierdź całą rundę {round} ({n})",
+    "Remove all of round {round} ({n})": "Usuń całą rundę {round} ({n})",
+    "Remove all {n} entries of round {round} from the table?": "Usunąć z tabeli wszystkie wpisy z rundy {round} ({n})?",
 
     # --- main window / buttons / status bar ---
     "Start Scan": "Rozpocznij skanowanie",
