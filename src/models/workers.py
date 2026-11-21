@@ -11,7 +11,7 @@ from PyQt6.QtCore import QRunnable, QThread, pyqtSignal
 from chess.pgn import read_game
 import chess
 
-from src.helpers import get_appdata_path, Status, get_board_number
+from src.helpers import get_appdata_path, Status, get_board_number, write_file_atomic, is_phantom_game
 from src.claims.manager import ClaimsManager
 from src.models.events import get_players, ClaimType, ClaimEntry
 from src.models.download import check_download, download_pgn, fetch_pgn
@@ -430,8 +430,7 @@ class DownloadGames(QThread):
 
             filename = self.downloads[url]
             try:
-                with open(filename, "wb") as file:
-                    file.write(data)
+                write_file_atomic(filename, data)
             except (OSError, TypeError) as exc:
                 logger.warning("cannot write %s: %s", filename, exc)
                 self.status_signal.emit(Status.ERROR)
@@ -530,8 +529,7 @@ class DownloadLiveChessGames(QThread):
             filepath = os.path.join(self.app_path, filename)
             
             try:
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(pgn_content)
+                write_file_atomic(filepath, pgn_content.encode("utf-8"))
             except Exception:
                 self.status_signal.emit(Status.ERROR)
                 status = Status.ERROR
@@ -606,6 +604,8 @@ class Scan(QThread):
                     game = read_game(pgn)
                     if not game:
                         break
+                    if is_phantom_game(game):
+                        continue  # fragment of a truncated PGN (skipped by the GUI too)
 
                     # ---------------------------------------------
                     # FIX: Live PGN optional
@@ -763,21 +763,9 @@ class MakePgn(Thread):
 
         self.lock_file()
         try:
-            # Write a temp file and swap it in atomically, so readers without the
-            # lock (GUI reload, board viewer) never see a half-written games.pgn
-            tmp_name = self.filename + ".tmp"
-            with open(tmp_name, "wb") as file:
-                file.write(data)
-            for attempt in range(5):
-                try:
-                    os.replace(tmp_name, self.filename)
-                    break
-                except PermissionError:
-                    # Windows: a reader still has games.pgn open - retry shortly
-                    time.sleep(0.05)
-            else:
-                with open(self.filename, "wb") as file:
-                    file.write(data)
+            # Swap in atomically: readers without the lock (GUI reload, board
+            # viewer) never see a half-written games.pgn
+            write_file_atomic(self.filename, data)
         finally:
             self.release_file()
 

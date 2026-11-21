@@ -9,6 +9,39 @@ from functools import lru_cache
 APP_NAME = "Akiba"
 
 
+def write_file_atomic(path: str, data: bytes) -> None:
+    """
+    Replace a file in one step (temp file + os.replace).
+
+    PGN files are re-read every few seconds by other threads; a reader must
+    never see a half-written file - a truncated PGN turns into phantom games
+    with '?' headers and false mate / illegal move alerts.
+    """
+    import time
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as file:
+        file.write(data)
+    for _ in range(10):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(0.05)  # Windows: a reader still has the file open
+    with open(path, "wb") as file:  # last resort
+        file.write(data)
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+
+
+def is_phantom_game(game) -> bool:
+    """A 'game' without players - a fragment of a truncated PGN, not a real game."""
+    white = str(game.headers.get("White", "") or "").strip()
+    black = str(game.headers.get("Black", "") or "").strip()
+    return white in ("", "?") and black in ("", "?")
+
+
 def get_engine_path() -> str:
     """
     Absolute path of the Stockfish executable.

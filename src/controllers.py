@@ -9,7 +9,7 @@ from typing import List, Dict
 from PyQt6.QtCore import Qt, QThreadPool
 from PyQt6.QtWidgets import QApplication
 
-from src.helpers import get_appdata_path, Status, get_engine_path
+from src.helpers import get_appdata_path, Status, get_engine_path, is_phantom_game
 from src.claims.manager import ClaimsManager
 from src.models.workers import CheckDownload, DownloadGames, MakePgn, Scan, Stop, DownloadLiveChessGames
 from src.models.events import ClaimEntry, ClaimType, ClaimsStore
@@ -662,6 +662,10 @@ class ChessClaimController(QApplication):
                     if not g:
                         break
                     raw_game = pgn_text[start:f.tell()]
+                    if is_phantom_game(g):
+                        # fragment of a truncated PGN - not a game (Scan skips it too)
+                        logger.info("skipped a PGN fragment without players")
+                        continue
                     
                     # Check for errors in the loaded game
                     if g.errors:
