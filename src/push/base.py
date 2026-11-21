@@ -8,8 +8,8 @@ means implementing ``PushProvider.send``.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Optional, Tuple
+from dataclasses import dataclass, field, asdict, replace
+from typing import Dict, List, Optional, Tuple
 
 from src.models.events import ClaimType
 
@@ -105,6 +105,8 @@ class PushTypeSettings:
     priority: int = PRIORITY_NORMAL
     title_template: str = DEFAULT_TITLE
     body_template: str = DEFAULT_BODY
+    # Devices that should NOT get this event (empty = all devices)
+    excluded_devices: List[str] = field(default_factory=list)
 
 
 def _default_types() -> Dict[str, PushTypeSettings]:
@@ -137,6 +139,8 @@ class PushSettings:
     provider: str = "pushover"
     user_key: str = ""
     app_token: str = ""
+    # Device names registered on the Pushover account (from users/validate)
+    devices: List[str] = field(default_factory=list)
     types: Dict[str, PushTypeSettings] = field(default_factory=_default_types)
 
     @property
@@ -156,6 +160,7 @@ class PushSettings:
             provider=str(data.get("provider") or "pushover"),
             user_key=str(data.get("user_key") or ""),
             app_token=str(data.get("app_token") or ""),
+            devices=[str(d) for d in data.get("devices") or [] if d],
         )
         stored = data.get("types") or {}
         for code, default in settings.types.items():
@@ -166,6 +171,7 @@ class PushSettings:
             default.priority = clamp_priority(item.get("priority", default.priority))
             default.title_template = str(item.get("title_template", default.title_template))
             default.body_template = str(item.get("body_template", default.body_template))
+            default.excluded_devices = [str(d) for d in item.get("excluded_devices") or [] if d]
         return settings
 
 
@@ -181,6 +187,7 @@ class PushMessage:
     title: str
     body: str
     priority: int = PRIORITY_NORMAL
+    devices: tuple = ()  # empty = all devices of the account
 
 
 class _SafeDict(dict):
@@ -209,7 +216,14 @@ def build_message(settings: PushSettings, code: str, board: str = "",
     type_settings = settings.types.get(code)
     if type_settings is None or (not type_settings.enabled and not force):
         return None
-    return render_message(code, type_settings, board, white, black, move, result)
+    message = render_message(code, type_settings, board, white, black, move, result)
+    excluded = set(type_settings.excluded_devices)
+    if excluded and settings.devices:
+        targets = tuple(d for d in settings.devices if d not in excluded)
+        if not targets:
+            return None  # switched off on every device
+        message = replace(message, devices=targets)
+    return message
 
 
 def render_message(code: str, type_settings: PushTypeSettings, board: str = "",

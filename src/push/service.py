@@ -5,6 +5,7 @@ sending on a worker thread so a slow tournament network never blocks the GUI.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Callable, Optional
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
@@ -52,6 +53,27 @@ class _SendTask(QRunnable):
         self.signals.finished.emit(error)
 
 
+class _DevicesSignals(QObject):
+    finished = pyqtSignal(object)
+
+
+class _DevicesTask(QRunnable):
+    def __init__(self, provider, on_done) -> None:
+        super().__init__()
+        self.provider = provider
+        self.signals = _DevicesSignals()
+        self.signals.finished.connect(on_done)
+
+    def run(self) -> None:
+        try:
+            result = self.provider.list_devices()
+        except PushError as exc:
+            result = str(exc)
+        except Exception as exc:
+            result = f"Unexpected error: {exc}"
+        self.signals.finished.emit(result)
+
+
 class PushNotifier:
     def __init__(self, settings: Optional[PushSettings] = None) -> None:
         self.settings = settings or PushSettings()
@@ -90,7 +112,7 @@ class PushNotifier:
         message = build_message(self.settings, code, str(entry.board_number),
                                 white, black, str(entry.move), force=followed)
         if message is not None and followed:
-            message = PushMessage("★ " + message.title, message.body, message.priority)
+            message = replace(message, title="★ " + message.title)
         self._dispatch(message)
 
     def notify_game_end(self, board: str, white: str, black: str, result: str) -> None:
@@ -99,7 +121,7 @@ class PushNotifier:
             return
         message = build_message(self.settings, "GAME_END", board, white, black, result=result, force=True)
         if message is not None:
-            self._dispatch(PushMessage("★ " + message.title, message.body, message.priority))
+            self._dispatch(replace(message, title="★ " + message.title))
 
     def notify_pgn_error(self, url: str, reason: str) -> None:
         """A PGN source keeps failing (reported once per failure series by DownloadGames)."""
@@ -109,8 +131,7 @@ class PushNotifier:
         if message is None:
             return
         details = "\n".join(part for part in (url, reason) if part)
-        self._dispatch(PushMessage(message.title, f"{message.body}\n{details}".strip(),
-                                   message.priority))
+        self._dispatch(replace(message, body=f"{message.body}\n{details}".strip()))
 
     def send_test(self, settings: PushSettings, code: str,
                   on_done: Callable[[str], None]) -> None:
@@ -122,6 +143,10 @@ class PushNotifier:
         test.types[code].enabled = True
         message = build_message(test, code, **({} if code == ERR_PGN else SAMPLE_VALUES))
         self._pool.start(_SendTask(make_provider(test), message, on_done))
+
+    def fetch_devices(self, settings: PushSettings, on_done: Callable[[object], None]) -> None:
+        """Read the account's device list in the background; on_done gets a list or an error str."""
+        self._pool.start(_DevicesTask(make_provider(settings), on_done))
 
     def reset(self) -> None:
         """Forget what was sent (e.g. after the claims table was cleared)."""

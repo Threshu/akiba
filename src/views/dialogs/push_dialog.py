@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
     QFrame, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+    QMenu, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
 )
 
 from src.push.base import (
@@ -123,7 +123,12 @@ class PushSettingsDialog(QDialog):
         self._rows = {}
         self._templates = {code: (t.title_template, t.body_template)
                            for code, t in self._settings.types.items()}
+        self._devices = list(self._settings.devices)
+        self._excluded = {code: set(t.excluded_devices) for code, t in self._settings.types.items()}
+        self._device_buttons = {}
         self._build()
+        if self._settings.configured and not self._devices:
+            self._on_refresh_devices()
 
     # ------------------------------------------------------------------ GUI
     def _build(self) -> None:
@@ -144,6 +149,15 @@ class PushSettingsDialog(QDialog):
         form.addRow("User key:", self.user_key)
         form.addRow("API token:", self.app_token)
 
+        devices_row = QHBoxLayout()
+        self.devices_label = QLabel()
+        self.devices_label.setWordWrap(True)
+        refresh = QPushButton(tr("Refresh devices"))
+        refresh.clicked.connect(self._on_refresh_devices)
+        devices_row.addWidget(self.devices_label, 1)
+        devices_row.addWidget(refresh)
+        form.addRow(tr("Devices:"), devices_row)
+
         hint = QLabel(tr("iOS: enable Critical Alerts for High priority in the Pushover "
                          "app settings so alerts break through Silent / Focus mode."))
         hint.setWordWrap(True)
@@ -152,7 +166,7 @@ class PushSettingsDialog(QDialog):
 
         grid_widget = QWidget()
         grid = QGridLayout(grid_widget)
-        for col, header in enumerate(["On", "Event", "Priority", "Message (preview)", "", ""]):
+        for col, header in enumerate(["On", "Event", "Priority", "Devices", "Message (preview)", "", ""]):
             grid.addWidget(QLabel(f"<b>{tr(header)}</b>" if header else ""), 0, col)
 
         for row, (code, (label, _)) in enumerate(EVENT_TYPES.items(), start=1):
@@ -174,15 +188,22 @@ class PushSettingsDialog(QDialog):
             test = QPushButton("Test")
             test.clicked.connect(lambda _=False, c=code: self._on_test(c))
 
+            devices = QToolButton()
+            devices.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            devices.setMinimumWidth(130)
+            self._device_buttons[code] = devices
+
             grid.addWidget(enabled, row, 0)
             grid.addWidget(QLabel(tr(label)), row, 1)
             grid.addWidget(priority, row, 2)
-            grid.addWidget(preview, row, 3)
-            grid.addWidget(edit, row, 4)
-            grid.addWidget(test, row, 5)
+            grid.addWidget(devices, row, 3)
+            grid.addWidget(preview, row, 4)
+            grid.addWidget(edit, row, 5)
+            grid.addWidget(test, row, 6)
             self._rows[code] = (enabled, priority, preview)
             self._refresh_preview(code)
-        grid.setColumnStretch(3, 1)
+        grid.setColumnStretch(4, 1)
+        self._refresh_devices_ui()
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -199,6 +220,54 @@ class PushSettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    # -------------------------------------------------------------- devices
+    def _on_refresh_devices(self) -> None:
+        settings = self.get_settings()
+        if not settings.configured:
+            self._set_result(tr("Enter the Pushover user key and API token first."), "#aa0000")
+            return
+        self.devices_label.setText(tr("Loading..."))
+        self._notifier.fetch_devices(settings, self._on_devices_loaded)
+
+    @pyqtSlot(object)
+    def _on_devices_loaded(self, result) -> None:
+        if isinstance(result, list):
+            self._devices = result
+        else:
+            self._set_result(str(result), "#aa0000")
+        self._refresh_devices_ui()
+
+    def _refresh_devices_ui(self) -> None:
+        self.devices_label.setText(", ".join(self._devices) if self._devices
+                                   else tr("unknown - click Refresh devices"))
+        for code, button in self._device_buttons.items():
+            menu = QMenu(button)
+            for device in self._devices:
+                action = menu.addAction(device)
+                action.setCheckable(True)
+                action.setChecked(device not in self._excluded[code])
+                action.toggled.connect(lambda on, c=code, d=device: self._toggle_device(c, d, on))
+            button.setMenu(menu)
+            button.setEnabled(bool(self._devices))
+            self._update_device_button(code)
+
+    def _toggle_device(self, code: str, device: str, on: bool) -> None:
+        if on:
+            self._excluded[code].discard(device)
+        else:
+            self._excluded[code].add(device)
+        self._update_device_button(code)
+
+    def _update_device_button(self, code: str) -> None:
+        button = self._device_buttons[code]
+        active = [d for d in self._devices if d not in self._excluded[code]]
+        if not self._devices or len(active) == len(self._devices):
+            button.setText(tr("All devices"))
+        elif not active:
+            button.setText(tr("None"))
+        else:
+            button.setText(", ".join(active))
 
     def _refresh_preview(self, code: str) -> None:
         title, body = _preview(code, *self._templates[code])
@@ -223,8 +292,10 @@ class PushSettingsDialog(QDialog):
         s.enabled = self.enabled_box.isChecked()
         s.user_key = self.user_key.text().strip()
         s.app_token = self.app_token.text().strip()
+        s.devices = list(self._devices)
         for code, (enabled, priority, _) in self._rows.items():
             t = s.types[code]
+            t.excluded_devices = sorted(d for d in self._excluded[code] if d in self._devices)
             t.enabled = enabled.isChecked()
             t.priority = int(priority.currentData())
             t.title_template, t.body_template = self._templates[code]
