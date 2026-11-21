@@ -3,6 +3,7 @@ from math import ceil
 
 from src.claims.checkers.base import BaseChecker
 from src.models.events import ClaimEntry, ClaimType, get_players
+from src.helpers import get_board_number
 
 
 class DeadPositionChecker(BaseChecker):
@@ -21,15 +22,7 @@ class DeadPositionChecker(BaseChecker):
     @staticmethod
     def get_board_number(game: Any) -> str:
         """Get board number from game headers."""
-        board = game.headers.get("Board")
-        if board and board != "None":
-            return board
-        
-        rnd = game.headers.get("Round")
-        if rnd and rnd != "None":
-            return rnd
-        
-        return "-"
+        return get_board_number(game)
 
     def make_game_id(self, game: Any) -> str:
         """Generate stable game identifier from PGN headers."""

@@ -9,7 +9,7 @@ from PyQt6.QtCore import QRunnable, QThread, pyqtSignal
 from chess.pgn import read_game
 import chess
 
-from src.helpers import get_appdata_path, Status
+from src.helpers import get_appdata_path, Status, get_board_number
 from src.claims.manager import ClaimsManager
 from src.models.events import get_players, ClaimType, ClaimEntry
 from src.models.download import check_download, download_pgn
@@ -227,16 +227,7 @@ class EngineWorker(QThread):
                             else:
                                 move_display = f"({declared_result})"
                             
-                            # Get board number from game headers (same as ClaimsManager.get_board_number)
-                            board_number = analysis_item.game.headers.get("Board")
-                            if board_number and board_number != "None":
-                                pass  # Use the Board header value
-                            else:
-                                rnd = analysis_item.game.headers.get("Round")
-                                if rnd and rnd != "None":
-                                    board_number = str(rnd)
-                                else:
-                                    board_number = "-"
+                            board_number = get_board_number(analysis_item.game)
                             
                             entry = ClaimEntry(
                                 type=ClaimType.MISMATCHED_RESULT,
@@ -275,15 +266,7 @@ class EngineWorker(QThread):
     
     def _get_board_number(self, game: Any) -> str:
         """Get board number from game headers (same as ClaimsManager.get_board_number)."""
-        board = game.headers.get("Board")
-        if board and board != "None":
-            return str(board)
-        
-        rnd = game.headers.get("Round")
-        if rnd and rnd != "None":
-            return str(rnd)
-        
-        return "-"
+        return get_board_number(game)
     
     def _parse_result(self, result: str) -> Optional[int]:
         """Parse PGN result string to numeric value."""

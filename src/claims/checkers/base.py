@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Any
+from src.helpers import get_board_number
 
 
 class BaseChecker(ABC):
@@ -11,15 +12,7 @@ class BaseChecker(ABC):
     @staticmethod
     def get_board_number(game: Any) -> str:
         """Get board number from game headers."""
-        board = game.headers.get("Board")
-        if board and board != "None":
-            return board
-
-        rnd = game.headers.get("Round")
-        if rnd and rnd != "None":
-            return rnd
-
-        return "-"
+        return get_board_number(game)
 
     @abstractmethod
     def check(self, game: Any, claims_model: Any, **kwargs) -> List[Any]:

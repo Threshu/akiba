@@ -1,6 +1,7 @@
 from typing import List, Any, Set, Dict
 
 from src.models.events import ClaimEntry, ClaimType
+from src.helpers import get_board_number
 from src.claims.checkers import (
     ThreeFoldChecker,
     FiveFoldChecker,
@@ -114,15 +115,7 @@ class ClaimsManager:
     @staticmethod
     def get_board_number(game: Any) -> str:
         """Get board number from game headers."""
-        board = game.headers.get("Board")
-        if board and board != "None":
-            return board
-
-        rnd = game.headers.get("Round")
-        if rnd and rnd != "None":
-            return rnd
-
-        return "-"
+        return get_board_number(game)
 
     def make_game_id(self, game: Any) -> str:
         """Generate stable game identifier from PGN headers."""

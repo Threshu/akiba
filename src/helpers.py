@@ -7,6 +7,28 @@ import sys
 APP_NAME = "Akiba"
 
 
+def get_board_number(game) -> str:
+    """
+    Board identifier shown in the table and in notifications.
+
+    Uses the Board header. Many tournament PGNs have no Board header and
+    encode it in Round as ROUND.BOARD (e.g. "3.4"); then only the board
+    part ("4") is returned. Falls back to "-".
+    """
+    board = str(game.headers.get("Board") or "").strip()
+    if board and board not in ("None", "?"):
+        return board
+
+    rnd = str(game.headers.get("Round") or "").strip()
+    if not rnd or rnd in ("None", "?"):
+        return "-"
+    if "." in rnd:
+        parts = [part for part in rnd.split(".") if part]
+        if parts:
+            return parts[-1]
+    return rnd
+
+
 def resource_path(relative_path: str) -> str:
     """
     Return the absolute path to a resource file.
