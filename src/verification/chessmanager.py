@@ -92,6 +92,13 @@ class VerificationReport:
     not_found: List[Tuple[int, str, str, str]] = field(default_factory=list)  # (game_index, round, white, black)
     pending_in_cm: int = 0      # finished in PGN, no result in ChessManager yet
     errors: List[str] = field(default_factory=list)
+    tournaments: int = 0
+    rounds: List[str] = field(default_factory=list)
+    finished_at: str = ""       # HH:MM:SS of the check
+
+    @property
+    def ok(self) -> bool:
+        return not self.discrepancies and not self.errors and self.checked > 0
 
 
 def _text(fragment: str) -> str:
@@ -154,6 +161,8 @@ def verify(games: List, urls: Iterable[str],
         return report
 
     rounds = sorted({round_of(g) for g in games if round_of(g)}, key=lambda r: (len(r), r))
+    report.tournaments = len(tournaments)
+    report.rounds = rounds
     pairings: Dict[Tuple[str, str], Tuple[Pairing, bool]] = {}  # (round, players key) -> (pairing, swapped)
     session = requests.Session()
     first = True
@@ -197,6 +206,8 @@ def verify(games: List, urls: Iterable[str],
         if pgn_result != pairing.result:
             report.discrepancies.append(Discrepancy(
                 index, pairing.board, rnd, white, black, pgn_result, pairing.result))
+    from datetime import datetime
+    report.finished_at = datetime.now().strftime("%H:%M:%S")
     logger.info("ChessManager verification: %d checked, %d discrepancies, %d not found",
                 report.checked, len(report.discrepancies), len(report.not_found))
     return report

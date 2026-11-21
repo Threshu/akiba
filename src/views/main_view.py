@@ -261,6 +261,28 @@ class ChessClaimView(QMainWindow):
             int((screen.height() - size.height()) / 2),
         )
 
+    VERIFY_ALERT_STYLE = (
+        "QPushButton { background-color: #d92d20; color: white; border: 1px solid #b42318;"
+        " font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 4px; }"
+        "QPushButton:hover { background-color: #b42318; }"
+    )
+
+    def set_verification_state(self, report) -> None:
+        """Red button with a count when results differ from ChessManager, normal otherwise."""
+        button = self.verify_results_button
+        count = len(report.discrepancies)
+        if count:
+            button.setText("⚠ " + tr("Verify results") + f" ({count})")
+            button.setStyleSheet(self.VERIFY_ALERT_STYLE)
+            button.setToolTip(tr("Results differ from ChessManager - click to see"))
+        else:
+            button.setText(tr("Verify results"))
+            button.setStyleSheet("")
+            if report.checked and not report.errors:
+                button.setToolTip(tr("Last check: {time} - all results match").format(time=report.finished_at))
+            else:
+                button.setToolTip(tr("Compare transmission results with ChessManager"))
+
     def set_gui(self) -> None:
         """Initialize all GUI components (wrapper for backward compatibility)."""
         # All initialization is already done in __init__; restore last size / position

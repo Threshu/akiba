@@ -5,7 +5,7 @@ from typing import Callable, List
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel,
+    QAbstractItemView, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QHeaderView, QLabel,
     QPlainTextEdit, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
 
@@ -53,6 +53,34 @@ class ChessManagerSourcesDialog(QDialog):
             self.info.setStyleSheet("color: #505050;")
 
 
+def _banner(symbol: str, title: str, details: str, background: str, color: str) -> QFrame:
+    """Coloured summary box with a large round symbol."""
+    frame = QFrame()
+    frame.setStyleSheet(f"QFrame#banner {{ background: {background}; border: 1px solid {color};"
+                        f" border-radius: 8px; }}")
+    frame.setObjectName("banner")
+    row = QHBoxLayout(frame)
+    row.setContentsMargins(16, 14, 16, 14)
+    row.setSpacing(16)
+    icon = QLabel(symbol)
+    icon.setFixedSize(52, 52)
+    icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    icon.setStyleSheet(f"background: {color}; color: white; border-radius: 26px;"
+                       f" font-size: 28px; font-weight: bold;")
+    row.addWidget(icon)
+    texts = QVBoxLayout()
+    headline = QLabel(title)
+    headline.setStyleSheet(f"color: {color}; font-size: 17px; font-weight: bold; background: transparent;")
+    headline.setWordWrap(True)
+    sub = QLabel(details)
+    sub.setStyleSheet("color: #444444; background: transparent;")
+    sub.setWordWrap(True)
+    texts.addWidget(headline)
+    texts.addWidget(sub)
+    row.addLayout(texts, 1)
+    return frame
+
+
 class VerificationResultsDialog(QDialog):
     """Result of the comparison; clicking a row opens the game in the Board Viewer."""
 
@@ -65,19 +93,26 @@ class VerificationResultsDialog(QDialog):
         self._open_game = open_game
         layout = QVBoxLayout(self)
 
-        summary = QLabel()
-        summary.setWordWrap(True)
+        # Banner: green when everything matches, red with discrepancies, grey otherwise
+        details = tr("Games checked: {n}").format(n=report.checked)
+        details += " · " + tr("Tournaments: {n}").format(n=report.tournaments)
+        if report.rounds:
+            details += " · " + tr("Rounds: {rounds}").format(rounds=", ".join(report.rounds))
+        if report.finished_at:
+            details += " · " + tr("Checked at {time}").format(time=report.finished_at)
         if report.discrepancies:
-            summary.setText("<b>" + tr("{n} results differ from ChessManager. "
-                                       "Click a row to open the board.").format(n=len(report.discrepancies)) + "</b>")
-            summary.setStyleSheet("color: #7a0000;")
-        elif report.checked:
-            summary.setText("<b>" + tr("All results match ChessManager ({n} games checked).").format(
-                n=report.checked) + "</b>")
-            summary.setStyleSheet("color: #006000;")
+            layout.addWidget(_banner("!", tr("{n} results differ from ChessManager").format(
+                n=len(report.discrepancies)), tr("Click a row to open the game on the board.") + "<br>" + details,
+                "#fdecec", "#b42318"))
+        elif report.checked and not report.errors:
+            layout.addWidget(_banner("✓", tr("All results match ChessManager"), details,
+                                     "#e9f7ef", "#1e7b3c"))
+        elif report.errors:
+            layout.addWidget(_banner("?", tr("Could not read from ChessManager"), details,
+                                     "#fff4e5", "#9a5b00"))
         else:
-            summary.setText("<b>" + tr("No game could be matched with ChessManager.") + "</b>")
-        layout.addWidget(summary)
+            layout.addWidget(_banner("?", tr("No game could be matched with ChessManager."), details,
+                                     "#f2f2f2", "#505050"))
 
         rows = [(d.game_index, d.round, d.board, d.white, d.black,
                  RESULT_TEXT.get(d.pgn_result, d.pgn_result), RESULT_TEXT.get(d.cm_result, d.cm_result),
@@ -124,6 +159,9 @@ class VerificationResultsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        if not rows:
+            self.setMinimumWidth(600)
+            self.adjustSize()
 
     def _on_row_clicked(self, row: int, _column: int) -> None:
         index = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)

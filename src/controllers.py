@@ -175,6 +175,7 @@ class ChessClaimController(QApplication):
         self.load_options()  # Load saved reminder settings
         self.apply_options_to_view()  # Apply loaded settings to view checkboxes
         self.view.show()
+        self.start_background_verification()
 
     # -------------------------------------------------------------------------
     # OPTIONS (Settings Persistence)
@@ -344,14 +345,24 @@ class ChessClaimController(QApplication):
             return True
         return False
 
+    # Background check of results against ChessManager (minutes)
+    VERIFY_INTERVAL_MINUTES = 5
+
+    def start_background_verification(self) -> None:
+        """Re-check results every few minutes; the button turns red on discrepancies."""
+        from PyQt6.QtCore import QTimer
+        self.verify_timer = QTimer(self)
+        self.verify_timer.setInterval(self.VERIFY_INTERVAL_MINUTES * 60 * 1000)
+        self.verify_timer.timeout.connect(lambda: self._start_verification(show_dialog=False))
+        self.verify_timer.start()
+        # first background check shortly after start (games are loaded once the scan runs)
+        QTimer.singleShot(60 * 1000, lambda: self._start_verification(show_dialog=False))
+
     def on_verify_results_clicked(self) -> None:
-        """Compare PGN results with ChessManager in the background, then show the report."""
+        """Manual check: compare PGN results with ChessManager, then show the report."""
         from PyQt6.QtWidgets import QMessageBox
         from src.i18n import tr
-        from src.verification.worker import VerifyResultsWorker
 
-        if self.verify_worker is not None and self.verify_worker.isRunning():
-            return
         if not self.chessmanager_urls and not self.on_chessmanager_sources_clicked():
             return
         if not self.chessmanager_urls:
@@ -361,22 +372,39 @@ class ChessClaimController(QApplication):
         if not self.games:
             QMessageBox.information(self.view, "Akiba", tr("No games loaded - start the scan first."))
             return
+        self._start_verification(show_dialog=True)
+
+    def _start_verification(self, show_dialog: bool) -> None:
+        from src.i18n import tr
+        from src.verification.worker import VerifyResultsWorker
+
+        if self.verify_worker is not None and self.verify_worker.isRunning():
+            if show_dialog:
+                self._verification_wants_dialog = True  # show when the running check ends
+            return
+        if not self.chessmanager_urls or not self.games:
+            return
 
         games = list(self.games)
-        button = self.view.verify_results_button
-        button.setEnabled(False)
-        button.setText(tr("Verifying..."))
+        self._verification_wants_dialog = show_dialog
+        if show_dialog:
+            button = self.view.verify_results_button
+            button.setEnabled(False)
+            button.setText(tr("Verifying..."))
         self.verify_worker = VerifyResultsWorker(games, self.chessmanager_urls)
         self.verify_worker.finished_signal.connect(
-            lambda report: self._show_verification(report, games))
+            lambda report: self._on_verification_finished(report, games))
         self.verify_worker.start()
 
+    def _on_verification_finished(self, report, games) -> None:
+        self.view.verify_results_button.setEnabled(True)
+        self.view.set_verification_state(report)
+        if getattr(self, "_verification_wants_dialog", False):
+            self._verification_wants_dialog = False
+            self._show_verification(report, games)
+
     def _show_verification(self, report, games) -> None:
-        from src.i18n import tr
         from src.views.dialogs.verify_dialog import VerificationResultsDialog
-        button = self.view.verify_results_button
-        button.setEnabled(True)
-        button.setText(tr("Verify results"))
 
         def open_game(index: int) -> None:
             game = games[index]
