@@ -372,7 +372,7 @@ class DownloadGames(QThread):
     """Downloads PGN files from the web."""
 
     status_signal = pyqtSignal(Status)
-    INTERVAL = 4
+    INTERVAL = 2
     __slots__ = ["downloads", "stop_event", "app_path"]
 
     def __init__(self, downloads: Dict[str, str], stop_event: Event = None):
@@ -512,7 +512,7 @@ class Scan(QThread):
     new_move_signal = pyqtSignal()
     game_queued_signal = pyqtSignal(object, str, str)  # game, declared_result, final_fen
     
-    INTERVAL = 4
+    INTERVAL = 2
 
     def __init__(self, claims_manager: ClaimsManager, filename: str, lock: Lock,
                  live_pgn_option: QAction, stop_event: Event, game_queue: GameQueue = None):
@@ -675,7 +675,7 @@ class MakePgn(Thread):
     This worker does NOT emit Qt signals (it is a plain Thread).
     """
 
-    INTERVAL = 4
+    INTERVAL = 2
     __slots__ = ["filepaths", "stop_event", "is_running", "lock", "daemon"]
 
     def __init__(self, filepaths: List[str], stop_event: Event = None, lock: Lock = None):
