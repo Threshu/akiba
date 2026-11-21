@@ -71,6 +71,7 @@ class Pairing:
     white: str
     black: str
     result: str  # PGN notation, "" when not entered yet
+    tournament_name: str = ""
 
 
 @dataclass
@@ -83,6 +84,7 @@ class Discrepancy:
     pgn_result: str
     cm_result: str
     note: str = ""
+    tournament: str = ""
 
 
 @dataclass
@@ -90,7 +92,8 @@ class VerificationReport:
     checked: int = 0
     discrepancies: List[Discrepancy] = field(default_factory=list)
     not_found: List[Tuple[int, str, str, str]] = field(default_factory=list)  # (game_index, round, white, black)
-    pending_in_cm: int = 0      # finished in PGN, no result in ChessManager yet
+    # finished in the transmission, no result in ChessManager yet
+    pending_in_cm: List[Discrepancy] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     tournaments: int = 0
     rounds: List[str] = field(default_factory=list)
@@ -110,6 +113,10 @@ def parse_round(page: str, tournament: str, rnd: str) -> List[Pairing]:
     start, end = page.find("<tbody"), page.find("</tbody>")
     if start < 0 or end < 0:
         return []
+    title = re.search(r"<title>(.*?)</title>", page, re.S)
+    name = _text(title.group(1)) if title else ""
+    name = re.sub(r"\s*-\s*ChessManager\s*$", "", name)
+    name = re.sub(r":\s*(Runda|Round)\s*\d+\s*$", "", name).strip()
     pairings = []
     for row in re.findall(r"<tr[^>]*>(.*?)</tr>", page[start:end], re.S):
         players = [_text(a) for a in re.findall(r'<a[^>]*/players/[^>]*>(.*?)</a>', row, re.S)]
@@ -123,7 +130,7 @@ def parse_round(page: str, tournament: str, rnd: str) -> List[Pairing]:
             if ":" in key and key in RESULTS:
                 result = RESULTS[key]
                 break
-        pairings.append(Pairing(tournament, rnd, board, players[0], players[1], result))
+        pairings.append(Pairing(tournament, rnd, board, players[0], players[1], result, name))
     return pairings
 
 
@@ -196,16 +203,19 @@ def verify(games: List, urls: Iterable[str],
         pgn_result = game.headers.get("Result", "*")
         if not pairing.result:
             if pgn_result != "*":
-                report.pending_in_cm += 1
+                report.pending_in_cm.append(Discrepancy(
+                    index, pairing.board, rnd, white, black, pgn_result, "",
+                    "no result in ChessManager yet", pairing.tournament_name))
             continue
         if swapped:
             report.discrepancies.append(Discrepancy(
                 index, pairing.board, rnd, white, black, pgn_result, pairing.result,
-                "colours swapped in transmission"))
+                "colours swapped in transmission", pairing.tournament_name))
             continue
         if pgn_result != pairing.result:
             report.discrepancies.append(Discrepancy(
-                index, pairing.board, rnd, white, black, pgn_result, pairing.result))
+                index, pairing.board, rnd, white, black, pgn_result, pairing.result,
+                tournament=pairing.tournament_name))
     from datetime import datetime
     report.finished_at = datetime.now().strftime("%H:%M:%S")
     logger.info("ChessManager verification: %d checked, %d discrepancies, %d not found",

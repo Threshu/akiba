@@ -89,7 +89,7 @@ class VerificationResultsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("Akiba - Result verification (ChessManager)"))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
-        self.resize(860, 420)
+        self.resize(1080, 460)
         self._open_game = open_game
         layout = QVBoxLayout(self)
 
@@ -100,6 +100,9 @@ class VerificationResultsDialog(QDialog):
             details += " · " + tr("Rounds: {rounds}").format(rounds=", ".join(report.rounds))
         if report.finished_at:
             details += " · " + tr("Checked at {time}").format(time=report.finished_at)
+        if report.pending_in_cm:
+            details += "<br>" + tr("Finished games without a result in ChessManager: {n} (listed below)").format(
+                n=len(report.pending_in_cm))
         if report.discrepancies:
             layout.addWidget(_banner("!", tr("{n} results differ from ChessManager").format(
                 n=len(report.discrepancies)), tr("Click a row to open the game on the board.") + "<br>" + details,
@@ -114,16 +117,20 @@ class VerificationResultsDialog(QDialog):
             layout.addWidget(_banner("?", tr("No game could be matched with ChessManager."), details,
                                      "#f2f2f2", "#505050"))
 
-        rows = [(d.game_index, d.round, d.board, d.white, d.black,
+        # (game index, colour, cells...) - red: differs, orange: no result in CM yet, grey: not found
+        rows = [(d.game_index, "#f8d0d0", d.tournament, d.round, d.board, d.white, d.black,
                  RESULT_TEXT.get(d.pgn_result, d.pgn_result), RESULT_TEXT.get(d.cm_result, d.cm_result),
                  tr(d.note) if d.note else (tr("missing in transmission") if d.pgn_result == "*"
                                             else tr("different result")))
                 for d in report.discrepancies]
-        rows += [(idx, rnd, "", white, black, "", "", tr("not found in ChessManager"))
+        rows += [(d.game_index, "#ffe8bf", d.tournament, d.round, d.board, d.white, d.black,
+                  RESULT_TEXT.get(d.pgn_result, d.pgn_result), "—", tr(d.note))
+                 for d in report.pending_in_cm]
+        rows += [(idx, "#eeeeee", "", rnd, "", white, black, "", "", tr("not found in ChessManager"))
                  for idx, rnd, white, black in report.not_found]
 
         if rows:
-            headers = [tr("Round"), tr("Board"), tr("White"), tr("Black"),
+            headers = [tr("Tournament"), tr("Round"), tr("Board"), tr("White"), tr("Black"),
                        tr("Transmission"), "ChessManager", tr("Problem")]
             self.table = QTableWidget(len(rows), len(headers))
             self.table.setHorizontalHeaderLabels(headers)
@@ -131,25 +138,25 @@ class VerificationResultsDialog(QDialog):
             self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-            for r, (idx, *cells) in enumerate(rows):
-                is_diff = r < len(report.discrepancies)
+            for r, (idx, colour, *cells) in enumerate(rows):
                 for c, value in enumerate(cells):
                     item = QTableWidgetItem(str(value))
                     item.setData(Qt.ItemDataRole.UserRole, idx)
-                    if c not in (2, 3):
+                    if c not in (0, 3, 4):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    item.setBackground(QColor("#f8d0d0" if is_diff else "#eeeeee"))
+                    item.setBackground(QColor(colour))
+                    if c == 0:
+                        item.setToolTip(str(value))
                     self.table.setItem(r, c, item)
             header = self.table.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+            self.table.setColumnWidth(0, 220)
             header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
             self.table.cellClicked.connect(self._on_row_clicked)
             layout.addWidget(self.table, 1)
 
-        if report.pending_in_cm:
-            layout.addWidget(QLabel(tr("{n} finished games have no result in ChessManager yet.").format(
-                n=report.pending_in_cm)))
         if report.errors:
             errors = QLabel(tr("Could not read from ChessManager:") + "\n" + "\n".join(report.errors))
             errors.setStyleSheet("color: #aa0000;")

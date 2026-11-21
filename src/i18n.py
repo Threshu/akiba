@@ -210,6 +210,10 @@ PL = {
         "Wszystkie wyniki zgodne z ChessManager (sprawdzono partii: {n}).",
     "No game could be matched with ChessManager.": "Nie udało się dopasować żadnej partii do ChessManager.",
     "Round": "Runda",
+    "Tournament": "Turniej",
+    "Finished games without a result in ChessManager: {n} (listed below)":
+        "Zakończone partie bez wyniku w ChessManager: {n} (lista poniżej)",
+    "no result in ChessManager yet": "brak wyniku w ChessManager",
     "Transmission": "Transmisja",
     "Problem": "Problem",
     "missing in transmission": "brak wyniku w transmisji",
