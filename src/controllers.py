@@ -1063,11 +1063,14 @@ class ChessClaimController(QApplication):
             return
 
         if self.scan_worker and self.scan_worker.isRunning():
-            self.on_stop_button_clicked()
+            self.on_stop_button_clicked(blocking=False)
 
         self.sources_dialog.do_resume()
 
     def on_scan_button_clicked(self) -> None:
+        # A stop still running in the background must finish first
+        if self.stop_worker is not None and self.stop_worker.isRunning():
+            self.stop_worker.wait()
         if not self.sources_dialog or not self.sources_dialog.has_valid_sources():
             sources_warning()
             return
@@ -1099,8 +1102,13 @@ class ChessClaimController(QApplication):
         self.start_make_png_worker(games_pgn_mutex)
         self.start_scan_worker(games_pgn_mutex)
 
-    def on_stop_button_clicked(self) -> None:
+    def on_stop_button_clicked(self, blocking: bool = True) -> None:
+        """Stop scanning. blocking=False returns at once and finishes in the background."""
         if not self.scan_worker or not self.scan_worker.isRunning():
+            return
+        if self.stop_worker is not None and self.stop_worker.isRunning():
+            if blocking:
+                self.stop_worker.wait()
             return
 
         # Set flag to prevent engine status from being re-enabled after stop
@@ -1124,7 +1132,14 @@ class ChessClaimController(QApplication):
         self.stop_worker.enable_signal.connect(self.on_stop_enable_status)
         self.stop_worker.disable_signal.connect(self.on_stop_disable_status)
         self.stop_worker.start()
+        if not blocking:
+            # GUI stays responsive (e.g. the sources dialog opens at once)
+            self.stop_worker.finished.connect(self._after_stop)
+            return
         self.stop_worker.wait()
+        self._after_stop()
+
+    def _after_stop(self) -> None:
         self.view.change_scan_button_text(Status.STOP)
         
         # Hide engine status immediately when Stop is clicked (like Scan does)

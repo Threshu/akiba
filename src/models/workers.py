@@ -82,6 +82,10 @@ class GameQueue:
         Returns:
             bool: True if added, False if already queued/analyzed
         """
+        if item is None:
+            # Poison pill that stops the engine worker - never deduplicated
+            self._queue.put(None)
+            return True
         with self._lock:
             if item.queue_key in self._queued_games:
                 return False
