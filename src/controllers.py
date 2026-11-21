@@ -18,6 +18,7 @@ from src.views.board_viewer import BoardViewerWindow
 from src.models.events import get_players
 from src.reminders.manager import ReminderManager
 from src.models.livechesscloud import LiveChessCloudSource
+from src.push import PushNotifier, PushSettings
 
 
 class ChessClaimController(QApplication):
@@ -111,6 +112,9 @@ class ChessClaimController(QApplication):
         # Notification system enabled by default
         self.notifications_enabled = True
 
+        # Phone / Apple Watch push notifications (Pushover)
+        self.push = PushNotifier()
+
         # Game list and mapping
         self.games: List = []
         self.game_id_to_index: Dict[str, int] = {}
@@ -158,6 +162,9 @@ class ChessClaimController(QApplication):
 
             # Notification system
             self.notifications_enabled = data.get("enable_notifications", True)
+
+            # Phone / Apple Watch push notifications
+            self.push.settings = PushSettings.from_dict(data.get("push"))
 
             # Scoresheet reminder
             self.scoresheet_reminder_enabled = data.get("scoresheet_enabled", False)
@@ -212,6 +219,7 @@ class ChessClaimController(QApplication):
             "illegal_move_reminder": self.illegal_move_reminder_enabled,
             "sofia_enabled": self.sofia_rule_enabled,
             "sofia_move": self.sofia_rule_threshold,
+            "push": self.push.settings.to_dict(),
         }
 
         with open(os.path.join(get_appdata_path(), 'options.json'), 'w') as file:
@@ -853,6 +861,14 @@ class ChessClaimController(QApplication):
 
     def update_download_status(self, status: Status) -> None:
         self.view.set_download_status(status)
+        self.push.on_download_status(status == Status.ERROR, status == Status.OK)
+
+    def on_push_settings_clicked(self) -> None:
+        from src.views.dialogs.push_dialog import PushSettingsDialog
+        dialog = PushSettingsDialog(self.push.settings, self.push, self.view)
+        if dialog.exec():
+            self.push.settings = dialog.get_settings()
+            self.save_options()
 
     def update_bar_scan_status(self, status: Status) -> None:
         self.view.set_scan_status(status)

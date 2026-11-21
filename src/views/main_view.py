@@ -405,6 +405,7 @@ class ChessClaimView(QMainWindow):
     def add_item_to_table(self, entry) -> None:
         """Add a claim to the table using ClaimsTable component."""
         self.claims_table_widget.add_claim(entry)
+        self.controller.push.notify_claim(entry)
 
     def clear_claims_table(self) -> None:
         """Clear all rows from the claims table using component method."""

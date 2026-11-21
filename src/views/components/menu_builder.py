@@ -177,6 +177,12 @@ class MenuBarBuilder:
         widget_action_notifications.setDefaultWidget(widget_notifications)
         notifications_menu.addAction(widget_action_notifications)
 
+        # Phone / Apple Watch push notifications
+        notifications_menu.addSeparator()
+        push_action = QAction('Phone notifications (Pushover)...', self.view)
+        push_action.triggered.connect(self.view.controller.on_push_settings_clicked)
+        notifications_menu.addAction(push_action)
+
     def _build_help_menu(self, menu_bar) -> None:
         """Build Help menu with About and User Manual."""
         options_menu = menu_bar.addMenu('&Help')
