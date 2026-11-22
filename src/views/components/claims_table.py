@@ -55,6 +55,10 @@ ROW_COLORS = {
 
 PRIORITY_ROLE = Qt.ItemDataRole.UserRole + 1
 
+ACK_COLUMN = 6
+ACKED = "✅"
+UNACKED = "☐"  # visible box: click it to acknowledge
+
 
 def claim_family(claim_type: ClaimType):
     """(family, level): a stronger level replaces a weaker one of the same game."""
@@ -121,25 +125,48 @@ class ClaimsTable(QWidget):
         self.model.rowsInserted.connect(lambda *_: self.apply_filter())
         self.model.rowsRemoved.connect(lambda *_: self.apply_filter())
 
-    def keyPressEvent(self, event):
+    def eventFilter(self, obj, event):
         """
-        Handle keyboard events for the table.
-        Space bar toggles Ack status on selected row(s).
-        
-        Args:
-            event: The key event object
+        Quick acknowledging:
+          * click the box in the Ack column (pointing-hand cursor over it),
+          * Space / Enter: acknowledge (or un-acknowledge) the selected rows,
+          * Delete: remove the selected rows.
         """
-        if event.key() == Qt.Key.Key_Space:
-            # Get currently selected rows
-            selected_rows = self.get_selected_rows()
-            
-            if selected_rows:
-                # Space acknowledges all selected rows (or un-acknowledges if all already are)
-                all_acked = all(self._is_acked(r) for r in selected_rows)
-                self.set_ack(selected_rows, not all_acked)
-                return  # Event handled
-        
-        super().keyPressEvent(event)
+        from PyQt6.QtCore import QEvent
+        if obj is self.table and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            rows = self.get_selected_rows()
+            if rows and key in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                all_acked = all(self._is_acked(r) for r in rows)
+                self.set_ack(rows, not all_acked)
+                return True
+            if rows and key == Qt.Key.Key_Delete:
+                self._confirm_remove_rows(rows)
+                return True
+        elif obj is self.table.viewport() and event.type() == QEvent.Type.MouseMove:
+            index = self.table.indexAt(event.position().toPoint())
+            on_box = index.isValid() and index.column() == ACK_COLUMN
+            self.table.viewport().setCursor(
+                Qt.CursorShape.PointingHandCursor if on_box else Qt.CursorShape.ArrowCursor)
+        return super().eventFilter(obj, event)
+
+    def _on_cell_clicked(self, index) -> None:
+        """One click on the Ack box toggles it (for all selected rows if it is one of them)."""
+        if not index.isValid() or index.column() != ACK_COLUMN:
+            return
+        row = index.row()
+        selected = self.get_selected_rows()
+        rows = selected if row in selected and len(selected) > 1 else [row]
+        self.set_ack(rows, not self._is_acked(row))
+
+    def _confirm_remove_rows(self, rows) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+        answer = QMessageBox.question(
+            self, "Akiba", tr("Remove {n} selected entries from the table?").format(n=len(rows)),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes)
+        if answer == QMessageBox.StandardButton.Yes:
+            self.remove_rows(rows)
 
     def _setup_table(self) -> None:
         """Configure the claims table view and model."""
@@ -166,6 +193,16 @@ class ClaimsTable(QWidget):
 
         # Row click → open Board Viewer on DOUBLE CLICK (not single click)
         self.table.doubleClicked.connect(self.on_claim_double_clicked)
+
+        # One click on the Ack box acknowledges; Space / Enter / Delete on the selection
+        self.table.clicked.connect(self._on_cell_clicked)
+        self.table.installEventFilter(self)
+        self.table.viewport().setMouseTracking(True)
+        self.table.viewport().installEventFilter(self)
+        self.model.setHeaderData(ACK_COLUMN, Qt.Orientation.Horizontal,
+                                 tr("Click the box to acknowledge. Space: acknowledge selected, "
+                                    "Delete: remove selected, double click: open the board."),
+                                 Qt.ItemDataRole.ToolTipRole)
 
         # Context menu for Ack toggle (right-click)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -239,7 +276,7 @@ class ClaimsTable(QWidget):
             board_number,
             players,
             move,
-            "",                               # Ack (empty by default)
+            UNACKED,                          # Ack box (click to acknowledge)
         ]
 
         row = []
@@ -362,7 +399,7 @@ class ClaimsTable(QWidget):
     # ----------------------------------------------------------- bulk actions
     def _is_acked(self, row: int) -> bool:
         ack_item = self.model.item(row, 6)
-        return ack_item is not None and ack_item.text() == "✅"
+        return ack_item is not None and ack_item.text() == ACKED
 
     def row_round(self, row: int) -> str:
         """Round number of a row ("1" for Round "1.4"), from the game's PGN headers."""
@@ -384,7 +421,7 @@ class ClaimsTable(QWidget):
             ack_item = self.model.item(row, 6)
             if ack_item is None:
                 continue
-            ack_item.setText("✅" if acknowledged else "")
+            ack_item.setText(ACKED if acknowledged else UNACKED)
             self._paint_row(row)
 
     def remove_rows(self, rows) -> None:
@@ -419,10 +456,10 @@ class ClaimsTable(QWidget):
         """
         ack_item = self.model.item(row, 6)  # Ack column at position 6 (last)
         
-        if ack_item.text() == "✅":
-            ack_item.setText("")
+        if ack_item.text() == ACKED:
+            ack_item.setText(UNACKED)
         else:
-            ack_item.setText("✅")
+            ack_item.setText(ACKED)
         self._paint_row(row)
 
     def _paint_row(self, row: int) -> None:

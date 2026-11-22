@@ -100,6 +100,9 @@ PL = {
     "Move": "Ruch",
     "Ack": "Potw.",
     "Acknowledge": "Potwierdź",
+    "Remove {n} selected entries from the table?": "Usunąć z tabeli zaznaczone wpisy ({n})?",
+    "Click the box to acknowledge. Space: acknowledge selected, Delete: remove selected, double click: open the board.":
+        "Kliknij kratkę, aby potwierdzić. Spacja: potwierdź zaznaczone, Delete: usuń zaznaczone, dwuklik: otwórz szachownicę.",
     "Unacknowledge": "Cofnij potwierdzenie",
     "Filter by player, board or claim...": "Filtruj po zawodniku, szachownicy lub typie...",
     "Acknowledge selected ({n})": "Potwierdź zaznaczone ({n})",
