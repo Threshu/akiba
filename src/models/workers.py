@@ -205,6 +205,12 @@ class EngineWorker(QThread):
                         # Gray zone (1.0 to 3.0 or -1.0 to -3.0) is NOT monitored
                         parsed_result = self._parse_result(analysis_item.declared_result)
                         
+                        if (parsed_result == 0
+                                and self._draw_by_repetition(analysis_item.game)):
+                            # Perpetual check / repeated moves: a material advantage
+                            # does not make such a draw suspicious
+                            parsed_result = None
+
                         if parsed_result is not None and self._is_mismatch(score, parsed_result):
                             # Get last move for display (same as other checkers)
                             moves_list = list(analysis_item.game.mainline_moves())
@@ -298,6 +304,24 @@ class EngineWorker(QThread):
         }
         return result_map.get(result)
     
+    @staticmethod
+    def _draw_by_repetition(game, recent_plies: int = 12) -> bool:
+        """
+        True if a position near the end of the game occurred twice: a perpetual
+        check or repeated moves, after which a draw is normal whatever the
+        material balance (e.g. ...Qh4+ Kg1 Qe1+ Kh2 Qh4+).
+        """
+        board = game.board()
+        keys = [board._transposition_key()]
+        for move in game.mainline_moves():
+            try:
+                board.push(move)
+            except (ValueError, AssertionError):
+                return False
+            keys.append(board._transposition_key())
+        recent = keys[-(recent_plies + 1):]
+        return len(recent) != len(set(recent))
+
     def _is_mismatch(self, engine_score: float, declared_result: int) -> bool:
         """Check if engine evaluation mismatches declared result.
         
