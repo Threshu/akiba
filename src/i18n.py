@@ -100,6 +100,14 @@ PL = {
     "Move": "Ruch",
     "Ack": "Potw.",
     "Acknowledge": "Potwierdź",
+    "Done": "Załatwione",
+    "Reopen": "Przywróć",
+    "Mark as done": "Załatwione",
+    "Mark all of round {round} as done ({n})": "Cała runda {round} załatwiona ({n})",
+    "To do ({n})": "Do załatwienia ({n})",
+    "Done ({n})": "Załatwione ({n})",
+    "One click: done (moves to Done). Space / Delete: selected rows. Double click a row: open the board.":
+        "Jedno kliknięcie: załatwione (przenosi do Załatwionych). Spacja / Delete: zaznaczone wiersze. Dwuklik w wiersz: otwórz szachownicę.",
     "Remove {n} selected entries from the table?": "Usunąć z tabeli zaznaczone wpisy ({n})?",
     "Click the box to acknowledge. Space: acknowledge selected, Delete: remove selected, double click: open the board.":
         "Kliknij kratkę, aby potwierdzić. Spacja: potwierdź zaznaczone, Delete: usuń zaznaczone, dwuklik: otwórz szachownicę.",

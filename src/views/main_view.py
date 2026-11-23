@@ -275,6 +275,10 @@ class ChessClaimView(QMainWindow):
         "QPushButton:hover { background-color: #b42318; }"
     )
 
+    def _update_todo_counts(self, open_count: int, done_count: int) -> None:
+        self.todo_button.setText(tr("To do ({n})").format(n=open_count))
+        self.done_button.setText(tr("Done ({n})").format(n=done_count))
+
     def set_verification_state(self, report) -> None:
         """Red button with a count when results differ from ChessManager, normal otherwise."""
         button = self.verify_results_button
@@ -486,10 +490,29 @@ class ChessClaimView(QMainWindow):
         status_layout.addWidget(self.verify_results_button)
         status_layout.addSpacing(8)
 
-        # Add clear resolved button on the right side (same width as Add Sources)
-        self.clear_resolved_button.setMinimumWidth(125)
-        self.clear_resolved_button.clicked.connect(self.controller.on_clear_resolved_clicked)
-        status_layout.addWidget(self.clear_resolved_button)
+        # 'To do' / 'Done' switch for the claims table (replaces Clear Resolved)
+        from PyQt6.QtWidgets import QButtonGroup
+        self.todo_button = QPushButton()
+        self.done_button = QPushButton()
+        for button in (self.todo_button, self.done_button):
+            button.setCheckable(True)
+            button.setMinimumWidth(130)
+            button.setStyleSheet(
+                "QPushButton { background: white; border: 1px solid #b8b8b8; padding: 6px 12px;"
+                " font-weight: 600; color: #444444; }"
+                "QPushButton:checked { background: #43b864; border-color: #2a8a46; color: white; }")
+        self.todo_button.setChecked(True)
+        group = QButtonGroup(self)
+        group.setExclusive(True)
+        group.addButton(self.todo_button)
+        group.addButton(self.done_button)
+        self.todo_button.clicked.connect(lambda: self.claims_table_widget.set_show_done(False))
+        self.done_button.clicked.connect(lambda: self.claims_table_widget.set_show_done(True))
+        self.claims_table_widget.on_counts_changed = self._update_todo_counts
+        self._update_todo_counts(0, 0)
+        status_layout.addWidget(self.todo_button)
+        status_layout.addWidget(self.done_button)
+        self.clear_resolved_button.setVisible(False)
         
         # Create a widget to hold the layout and set it as the status bar
         status_widget = QWidget()

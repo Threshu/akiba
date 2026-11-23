@@ -12,6 +12,8 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QAbstractItemView,
     QMenu,
+    QStyle,
+    QStyledItemDelegate,
 )
 
 from src.helpers import resource_path
@@ -56,8 +58,41 @@ ROW_COLORS = {
 PRIORITY_ROLE = Qt.ItemDataRole.UserRole + 1
 
 ACK_COLUMN = 6
-ACKED = "✅"
-UNACKED = "☐"  # visible box: click it to acknowledge
+ACKED = "✅"     # state stored in the Ack cell; the cell is drawn as a button
+UNACKED = "☐"
+
+
+class DoneButtonDelegate(QStyledItemDelegate):
+    """Draws the Ack cell as a button: '✓ Done' for open entries, '↺ Reopen' for done ones."""
+
+    def paint(self, painter, option, index):
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPen, QFont
+        done = index.data() == ACKED
+        painter.save()
+        painter.setRenderHint(painter.RenderHint.Antialiasing)
+        rect = QRectF(option.rect).adjusted(6, 4, -6, -4)
+        hover = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        if done:
+            fill, border, text_color = QColor("#f2f2f2"), QColor("#9a9a9a"), QColor("#555555")
+            text = "↺ " + tr("Reopen")
+        else:
+            fill = QColor("#2e9e4f") if hover else QColor("#43b864")
+            border, text_color = QColor("#2a8a46"), QColor("white")
+            text = "✓ " + tr("Done")
+        painter.setPen(QPen(border, 1))
+        painter.setBrush(fill)
+        painter.drawRoundedRect(rect, 5, 5)
+        font = QFont(option.font)
+        font.setPixelSize(12)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(text_color)
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        return QSize(118, 30)
 
 
 def claim_family(claim_type: ClaimType):
@@ -117,6 +152,8 @@ class ClaimsTable(QWidget):
             self.notification = None
 
         self._filter_text = ""
+        self.show_done = False          # False: open entries, True: done (archive)
+        self.on_counts_changed = None   # callback(open_count, done_count)
 
         self._setup_table()
         self._build_layout()
@@ -124,6 +161,7 @@ class ClaimsTable(QWidget):
         # Keep the filter applied when rows are added / removed
         self.model.rowsInserted.connect(lambda *_: self.apply_filter())
         self.model.rowsRemoved.connect(lambda *_: self.apply_filter())
+        self.table.setItemDelegateForColumn(ACK_COLUMN, DoneButtonDelegate(self.table))
 
     def eventFilter(self, obj, event):
         """
@@ -136,12 +174,9 @@ class ClaimsTable(QWidget):
         if obj is self.table and event.type() == QEvent.Type.KeyPress:
             key = event.key()
             rows = self.get_selected_rows()
-            if rows and key in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
-                all_acked = all(self._is_acked(r) for r in rows)
-                self.set_ack(rows, not all_acked)
-                return True
-            if rows and key == Qt.Key.Key_Delete:
-                self._confirm_remove_rows(rows)
+            if rows and key in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Delete):
+                # to do -> done; in the done view: back to to do
+                self.set_ack(rows, not self.show_done)
                 return True
         elif obj is self.table.viewport() and event.type() == QEvent.Type.MouseMove:
             index = self.table.indexAt(event.position().toPoint())
@@ -157,7 +192,7 @@ class ClaimsTable(QWidget):
         row = index.row()
         selected = self.get_selected_rows()
         rows = selected if row in selected and len(selected) > 1 else [row]
-        self.set_ack(rows, not self._is_acked(row))
+        self.set_ack(rows, not self._is_acked(row))  # one click: done / reopen
 
     def _confirm_remove_rows(self, rows) -> None:
         from PyQt6.QtWidgets import QMessageBox
@@ -199,9 +234,10 @@ class ClaimsTable(QWidget):
         self.table.installEventFilter(self)
         self.table.viewport().setMouseTracking(True)
         self.table.viewport().installEventFilter(self)
+        self.model.setHeaderData(ACK_COLUMN, Qt.Orientation.Horizontal, "", Qt.ItemDataRole.DisplayRole)
         self.model.setHeaderData(ACK_COLUMN, Qt.Orientation.Horizontal,
-                                 tr("Click the box to acknowledge. Space: acknowledge selected, "
-                                    "Delete: remove selected, double click: open the board."),
+                                 tr("One click: done (moves to Done). Space / Delete: selected rows. "
+                                    "Double click a row: open the board."),
                                  Qt.ItemDataRole.ToolTipRole)
 
         # Context menu for Ack toggle (right-click)
@@ -215,7 +251,8 @@ class ClaimsTable(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)   # Timestamp
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)   # Type
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)   # Board
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)   # Ack
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)   # Done button
+        self.table.setColumnWidth(6, 124)
 
         # Players → stretch (fills available space), with minimum width of 150px
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
@@ -363,17 +400,9 @@ class ClaimsTable(QWidget):
         selected = self.get_selected_rows()
         rows = selected if row in selected else [row]
 
-        if len(rows) == 1:
-            has_ack = self._is_acked(row)
-            action = context_menu.addAction(tr("Unacknowledge") if has_ack else tr("Acknowledge"))
-            action.triggered.connect(lambda: self.toggle_ack(row))
-        else:
-            context_menu.addAction(tr("Acknowledge selected ({n})").format(n=len(rows))) \
-                .triggered.connect(lambda: self.set_ack(rows, True))
-            context_menu.addAction(tr("Unacknowledge selected ({n})").format(n=len(rows))) \
-                .triggered.connect(lambda: self.set_ack(rows, False))
-            context_menu.addAction(tr("Remove selected ({n})").format(n=len(rows))) \
-                .triggered.connect(lambda: self.remove_rows(rows))
+        done = self._is_acked(row)
+        label = (tr("Reopen") if done else tr("Mark as done")) + (f" ({len(rows)})" if len(rows) > 1 else "")
+        context_menu.addAction(label).triggered.connect(lambda: self.set_ack(rows, not done))
 
         # Follow this board live
         data = self.model.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
@@ -387,11 +416,10 @@ class ClaimsTable(QWidget):
         if rnd:
             round_rows = self.rows_of_round(rnd)
             context_menu.addSeparator()
-            context_menu.addAction(tr("Acknowledge all of round {round} ({n})").format(
-                round=rnd, n=len(round_rows))).triggered.connect(lambda: self.set_ack(round_rows, True))
-            context_menu.addAction(tr("Remove all of round {round} ({n})").format(
-                round=rnd, n=len(round_rows))).triggered.connect(
-                lambda: self._confirm_remove_round(rnd, round_rows))
+            open_round = [r for r in round_rows if not self._is_acked(r)]
+            if open_round:
+                context_menu.addAction(tr("Mark all of round {round} as done ({n})").format(
+                    round=rnd, n=len(open_round))).triggered.connect(lambda: self.set_ack(open_round, True))
 
         # Show menu at global position
         context_menu.exec(self.table.mapToGlobal(pos))
@@ -423,6 +451,8 @@ class ClaimsTable(QWidget):
                 continue
             ack_item.setText(ACKED if acknowledged else UNACKED)
             self._paint_row(row)
+        self.table.clearSelection()
+        self.apply_filter()  # moves the rows between 'to do' and 'done'
 
     def remove_rows(self, rows) -> None:
         """Remove rows and mark their claims cleared so they do not come back."""
@@ -456,11 +486,7 @@ class ClaimsTable(QWidget):
         """
         ack_item = self.model.item(row, 6)  # Ack column at position 6 (last)
         
-        if ack_item.text() == ACKED:
-            ack_item.setText(UNACKED)
-        else:
-            ack_item.setText(ACKED)
-        self._paint_row(row)
+        self.set_ack([row], ack_item.text() != ACKED)
 
     def _paint_row(self, row: int) -> None:
         """Apply the priority colour (or grey when acknowledged) to every cell of a row."""
@@ -575,17 +601,31 @@ class ClaimsTable(QWidget):
         self.apply_filter()
 
     def apply_filter(self) -> None:
+        """Show open or done entries (see show_done) matching the text filter."""
         from PyQt6.QtCore import QModelIndex
         needle = self._filter_text
+        open_count = done_count = 0
         for row in range(self.model.rowCount()):
-            visible = True
-            if needle:
+            done = self._is_acked(row)
+            if done:
+                done_count += 1
+            else:
+                open_count += 1
+            visible = done == self.show_done
+            if visible and needle:
                 visible = any(
                     needle in (self.model.item(row, col).text().lower()
                                if self.model.item(row, col) else "")
                     for col in self.FILTER_COLUMNS
                 )
             self.table.setRowHidden(row, QModelIndex(), not visible)
+        if self.on_counts_changed:
+            self.on_counts_changed(open_count, done_count)
+
+    def set_show_done(self, show_done: bool) -> None:
+        self.show_done = show_done
+        self.table.clearSelection()
+        self.apply_filter()
 
     def remove_rows_by_claim_type(self, claim_type: str, players: str) -> None:
         """
