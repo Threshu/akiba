@@ -154,7 +154,7 @@ class SofiaRuleChecker(BaseChecker):
         threshold = threshold or self.default_threshold
 
         for idx, game in enumerate(games):
-            already = fired_dict.get(idx, False)
+            already = fired_dict.get(claims_model.controller.make_game_id(game), False)
             
             if already:
                 continue
@@ -162,7 +162,7 @@ class SofiaRuleChecker(BaseChecker):
             game_entries = self.check(game, claims_model, threshold)
             
             if game_entries:
-                fired_dict[idx] = True
+                fired_dict[claims_model.controller.make_game_id(game)] = True
                 # Update game_index to match batch context
                 for entry in game_entries:
                     entry_dict = entry.__dict__.copy()

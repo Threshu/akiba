@@ -99,7 +99,7 @@ class TimeControlChecker(BaseChecker):
             moves_list = list(game.mainline_moves())
             ply_count = len(moves_list)  # Total plies in the game
             full_move_count = ply_count // 2  # Full moves for display/comparison
-            already = fired_dict.get(idx, False)
+            already = fired_dict.get(claims_model.controller.make_game_id(game), False)
 
             if not already and full_move_count >= threshold:
                 # Check if game ended at exactly the threshold move with a legitimate result
@@ -107,7 +107,7 @@ class TimeControlChecker(BaseChecker):
                 if result in ("1-0", "0-1", "1/2-1/2", "½-½") and full_move_count == threshold:
                     continue  # Game ended at threshold, skip reminder
 
-                fired_dict[idx] = True
+                fired_dict[claims_model.controller.make_game_id(game)] = True
 
                 board_number = claims_model.get_board_number(game)
                 gid = claims_model.controller.make_game_id(game)
