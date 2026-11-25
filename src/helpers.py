@@ -17,8 +17,10 @@ def write_file_atomic(path: str, data: bytes) -> None:
     never see a half-written file - a truncated PGN turns into phantom games
     with '?' headers and false mate / illegal move alerts.
     """
+    import threading
     import time
-    tmp = path + ".tmp"
+    # games.pgn is written by two threads: they must not share the temp file
+    tmp = f"{path}.{threading.get_ident()}.tmp"
     with open(tmp, "wb") as file:
         file.write(data)
     for _ in range(10):
@@ -27,12 +29,14 @@ def write_file_atomic(path: str, data: bytes) -> None:
             return
         except PermissionError:
             time.sleep(0.05)  # Windows: a reader still has the file open
-    with open(path, "wb") as file:  # last resort
-        file.write(data)
     try:
-        os.remove(tmp)
-    except OSError:
-        pass
+        with open(path, "wb") as file:  # last resort
+            file.write(data)
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 def stable_game_id(game_or_headers) -> str:

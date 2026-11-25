@@ -757,12 +757,18 @@ class MakePgn(Thread):
                     data += b"\n\n" + content + b"\n\n"
             except FileNotFoundError:
                 continue
+            except OSError as exc:
+                # briefly locked: keep the previous games.pgn, retry next pass
+                logger.warning("cannot read %s: %s", filepath, exc)
+                return
 
         self.lock_file()
         try:
             # Swap in atomically: readers without the lock (GUI reload, board
             # viewer) never see a half-written games.pgn
             write_file_atomic(self.filename, data)
+        except OSError as exc:
+            logger.warning("cannot write %s: %s", self.filename, exc)
         finally:
             self.release_file()
 
