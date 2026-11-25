@@ -1307,6 +1307,7 @@ class ChessClaimController(QApplication):
             self._notify_priming = False
             self._history_games = {self.make_game_id(g) for g in self.games
                                    if g.headers.get("Result", "*") != "*"}
+            self._start_verification(show_dialog=False)  # then repeated while the round is open
             logger.info("notifications active; %d finished games are not notified",
                         len(self._history_games))
 
