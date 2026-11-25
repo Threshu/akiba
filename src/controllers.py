@@ -363,51 +363,25 @@ class ChessClaimController(QApplication):
         # first background check shortly after start (games are loaded once the scan runs)
         QTimer.singleShot(60 * 1000, lambda: self._start_verification(show_dialog=False))
 
-    # Check right after a result appears or changes in the transmission
-    VERIFY_AFTER_RESULT_SECONDS = 5    # several results at once -> one check
-    VERIFY_MIN_GAP_SECONDS = 15        # between the starts of two automatic checks
-    # ChessManager cannot notify us: while a result is missing or different,
-    # look again sooner than every VERIFY_INTERVAL_MINUTES
-    VERIFY_UNRESOLVED_SECONDS = 60
+    # Results are entered in ChessManager by the arbiter and it cannot notify us,
+    # so it is read often while the round is open (2 pages per check; the crawl
+    # delay of robots.txt is kept between them). When every game has the same
+    # result in both places only VERIFY_INTERVAL_MINUTES applies.
+    VERIFY_OPEN_ROUND_SECONDS = 20
 
-    def _verify_on_result_change(self) -> None:
-        """Schedule a check when any result differs from the previous PGN update."""
-        known = self.__dict__.setdefault("_verify_known_results", {})
-        changed = []
-        for game in self.games:
-            game_id = self.make_game_id(game)
-            result = game.headers.get("Result", "*")
-            previous = known.get(game_id, "*")
-            if previous != result:
-                changed.append(f"#{ClaimsManager.get_board_number(game)} {previous} -> {result}")
-            known[game_id] = result
-        if changed and self.chessmanager_urls:
-            logger.info("result changed (%s), verifying", ", ".join(changed))
-            self._schedule_verification(self.VERIFY_AFTER_RESULT_SECONDS)
-
-    def _schedule_verification(self, seconds: float) -> None:
-        """Run a background check in `seconds`, unless one is already due sooner."""
-        import time
+    def _schedule_next_verification(self, report) -> None:
         from PyQt6.QtCore import QTimer
         if getattr(self, "_verify_soon_timer", None) is None:
             self._verify_soon_timer = QTimer(self)
             self._verify_soon_timer.setSingleShot(True)
-            self._verify_soon_timer.timeout.connect(self._run_scheduled_verification)
-        wait = seconds
-        started = getattr(self, "_verify_started", None)
-        if started is not None:
-            wait = max(wait, self.VERIFY_MIN_GAP_SECONDS - (time.monotonic() - started))
-        wait_ms = int(wait * 1000)
-        timer = self._verify_soon_timer
-        if not timer.isActive() or timer.remainingTime() > wait_ms:
-            timer.start(wait_ms)
-
-    def _run_scheduled_verification(self) -> None:
-        if self.verify_worker is not None and self.verify_worker.isRunning():
-            # the running check has an older snapshot of the games
-            self._schedule_verification(self.VERIFY_AFTER_RESULT_SECONDS)
-            return
-        self._start_verification(show_dialog=False)
+            self._verify_soon_timer.timeout.connect(lambda: self._start_verification(show_dialog=False))
+        self._verify_soon_timer.stop()
+        scanning = self.scan_worker is not None and self.scan_worker.isRunning()
+        if not scanning or report.errors or not report.checked:
+            return  # offline / blocked / round not published: wait for the slow timer
+        open_round = any(g.headers.get("Result", "*") == "*" for g in self.games)
+        if open_round or report.discrepancies or report.pending_in_cm:
+            self._verify_soon_timer.start(int(self.VERIFY_OPEN_ROUND_SECONDS * 1000))
 
     def on_verify_results_clicked(self) -> None:
         """Manual check: compare PGN results with ChessManager, then show the report."""
@@ -438,8 +412,6 @@ class ChessClaimController(QApplication):
 
         games = list(self.games)
         self._verification_wants_dialog = show_dialog
-        import time
-        self._verify_started = time.monotonic()
         if show_dialog:
             button = self.view.verify_results_button
             button.setEnabled(False)
@@ -452,9 +424,7 @@ class ChessClaimController(QApplication):
     def _on_verification_finished(self, report, games) -> None:
         self.view.verify_results_button.setEnabled(True)
         self.view.set_verification_state(report)
-        scanning = self.scan_worker is not None and self.scan_worker.isRunning()
-        if scanning and (report.discrepancies or report.pending_in_cm):
-            self._schedule_verification(self.VERIFY_UNRESOLVED_SECONDS)
+        self._schedule_next_verification(report)
         if getattr(self, "_verification_wants_dialog", False):
             self._verification_wants_dialog = False
             self._show_verification(report, games)
@@ -795,9 +765,6 @@ class ChessClaimController(QApplication):
             self.make_game_id(g) for g in self.games if g.headers.get("Result", "*") == "*")
         self._finished_games = {self.make_game_id(g) for g in self.games
                                 if g.headers.get("Result", "*") != "*"}
-
-        # Compare with ChessManager as soon as a result is entered or changed
-        self._verify_on_result_change()
 
         # Games of followed players that just finished
         self._notify_followed_game_ends()
