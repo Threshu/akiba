@@ -1,6 +1,7 @@
 from __future__ import annotations
-from src.helpers import stable_game_id
+from src.helpers import stable_game_id, read_pgn_text
 
+import io
 import logging
 import os.path
 import time
@@ -586,7 +587,11 @@ class Scan(QThread):
             if size_of_pgn != 0:
                 self.status_signal.emit(Status.ACTIVE)
                 self.new_move_signal.emit()
-                self.check_pgn()
+                try:
+                    self.check_pgn()
+                except Exception:
+                    # one bad pass must never stop the monitoring
+                    logger.exception("scan pass failed, retrying")
 
             self.status_signal.emit(Status.WAIT)
             last_size = size_of_pgn
@@ -601,7 +606,7 @@ class Scan(QThread):
 
         self.lock.acquire()
         try:
-            with open(self.filename, "r", encoding="utf-8") as pgn:
+            with io.StringIO(read_pgn_text(self.filename)) as pgn:
                 game_index = 0
 
                 while not self.stop_event.is_set():

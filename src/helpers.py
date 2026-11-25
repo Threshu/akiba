@@ -3,10 +3,30 @@ import os
 import platform
 import ssl
 import sys
+import threading
+import time
 from functools import lru_cache
 
 
 APP_NAME = "Akiba"
+
+
+# Windows refuses to open a file that is being replaced: PGN reads and writes
+# of all threads take turns
+_pgn_file_lock = threading.RLock()
+
+
+def read_pgn_text(path: str) -> str:
+    """Whole PGN file; waits while another thread or program is replacing it."""
+    for attempt in range(20):
+        try:
+            with _pgn_file_lock, open(path, "r", encoding="utf-8", errors="replace") as file:
+                return file.read()
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.05)
+    return ""
 
 
 def write_file_atomic(path: str, data: bytes) -> None:
@@ -16,9 +36,19 @@ def write_file_atomic(path: str, data: bytes) -> None:
     PGN files are re-read every few seconds by other threads; a reader must
     never see a half-written file - a truncated PGN turns into phantom games
     with '?' headers and false mate / illegal move alerts.
+    Nothing is written when the content is unchanged.
     """
-    import threading
-    import time
+    with _pgn_file_lock:
+        try:
+            with open(path, "rb") as file:
+                if file.read() == data:
+                    return
+        except OSError:
+            pass
+        _replace_file(path, data)
+
+
+def _replace_file(path: str, data: bytes) -> None:
     # games.pgn is written by two threads: they must not share the temp file
     tmp = f"{path}.{threading.get_ident()}.tmp"
     with open(tmp, "wb") as file:

@@ -1,16 +1,20 @@
 """PGN helper functions - extracted from BoardViewerWindow."""
 
+import io
+
 import chess
 import chess.pgn
 import chess.svg
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtGui import QPixmap, QPainter
 
+from src.helpers import read_pgn_text
+
 
 def load_games_from_file(pgn_path: str):
     """Load all games from a PGN file. Returns list of (index, game) tuples."""
     games = []
-    with open(pgn_path, "r", encoding="utf-8") as f:
+    with io.StringIO(read_pgn_text(pgn_path)) as f:
         index = 0
         while True:
             game = chess.pgn.read_game(f)

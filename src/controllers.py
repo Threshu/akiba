@@ -657,6 +657,12 @@ class ChessClaimController(QApplication):
             return
 
         import chess.pgn
+        from src.helpers import read_pgn_text
+        try:
+            pgn_text = read_pgn_text(pgn_path)
+        except OSError as exc:
+            logger.warning("cannot read %s: %s", pgn_path, exc)
+            return  # keep the current games, retry on the next pass
         self.games = []
         
         # Track illegal moves detected during parsing - stores full game and error info
@@ -666,9 +672,6 @@ class ChessClaimController(QApplication):
         log_path = os.path.join(app_path, "illegal_moves_log.txt")
         
         import io
-        with open(pgn_path, "r", encoding="utf-8") as pgn_file:
-            pgn_text = pgn_file.read()
-
         with io.StringIO(pgn_text) as f:
             game_index = 0
             
