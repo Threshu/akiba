@@ -278,6 +278,11 @@ class ChessClaimView(QMainWindow):
     def _update_todo_counts(self, open_count: int, done_count: int) -> None:
         self.todo_button.setText(tr("To do ({n})").format(n=open_count))
         self.done_button.setText(tr("Done ({n})").format(n=done_count))
+        # Entries still to do: number on the taskbar (Windows) / Dock (macOS) icon; 0 clears it
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if hasattr(app, "setBadgeNumber"):  # Qt 6.5+
+            app.setBadgeNumber(open_count)
 
     def set_verification_state(self, report) -> None:
         """Red button with a count when results differ from ChessManager, normal otherwise."""
