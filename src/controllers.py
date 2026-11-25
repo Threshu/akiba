@@ -1,3 +1,4 @@
+from src.helpers import stable_game_id
 import json
 import logging
 import os
@@ -162,14 +163,7 @@ class ChessClaimController(QApplication):
         Generates a stable identifier for a game based on PGN headers.
         This ID does NOT change even if the PGN file is rebuilt or reordered.
         """
-        return "|".join([
-            game.headers.get("Event", ""),
-            game.headers.get("Site", ""),
-            game.headers.get("Date", ""),
-            game.headers.get("Round", ""),
-            game.headers.get("White", ""),
-            game.headers.get("Black", ""),
-        ])
+        return stable_game_id(game)
 
     # -------------------------------------------------------------------------
     # START
@@ -489,8 +483,7 @@ class ChessClaimController(QApplication):
                             headers = chess.pgn.read_headers(f)
                             if headers is None:
                                 break
-                            ids.append("|".join(headers.get(k, "") for k in
-                                                ("Event", "Site", "Date", "Round", "White", "Black")))
+                            ids.append(stable_game_id(headers))
                 except OSError:
                     pass
                 cache[path] = (mtime, ids)
@@ -745,6 +738,12 @@ class ChessClaimController(QApplication):
         monitor = getattr(self, "live_monitor", None)
         if monitor is not None and monitor.isVisible():
             monitor.refresh()
+
+        # Games seen in progress: only these may notify once they are finished
+        self.__dict__.setdefault("_seen_ongoing", set()).update(
+            self.make_game_id(g) for g in self.games if g.headers.get("Result", "*") == "*")
+        self._finished_games = {self.make_game_id(g) for g in self.games
+                                if g.headers.get("Result", "*") != "*"}
 
         # Games of followed players that just finished
         self._notify_followed_game_ends()
@@ -1295,11 +1294,17 @@ class ChessClaimController(QApplication):
         Phone / desktop notifications only for what happens while monitoring:
         not during the first scan pass after (re)start - everything found
         then was already notified before - and not for games that had
-        already finished when monitoring started. The table shows all.
+        already finished when monitoring started or when they first appeared
+        (e.g. the computer slept through the round). The table shows all.
         """
         if getattr(self, "_notify_priming", False):
             return False
         if (entry.game_id or "") in getattr(self, "_history_games", set()):
+            return False
+        if ((entry.game_id or "") in getattr(self, "_finished_games", set())
+                and entry.game_id not in getattr(self, "_seen_ongoing", set())):
+            logger.info("notification suppressed (%s, board %s: game appeared already finished)",
+                        entry.type.name, entry.board_number)
             return False
         return self._throttle(entry)
 

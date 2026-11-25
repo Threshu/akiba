@@ -1,3 +1,4 @@
+from src.helpers import stable_game_id
 from typing import List, Any, Set
 from math import ceil
 
@@ -26,14 +27,7 @@ class CheckmateChecker(BaseChecker):
 
     def make_game_id(self, game: Any) -> str:
         """Generate stable game identifier from PGN headers."""
-        return "|".join([
-            game.headers.get("Event", ""),
-            game.headers.get("Site", ""),
-            game.headers.get("Date", ""),
-            game.headers.get("Round", ""),
-            game.headers.get("White", ""),
-            game.headers.get("Black", ""),
-        ])
+        return stable_game_id(game)
 
     @staticmethod
     def get_printable_move(move_counter: int, san_move: str) -> str:

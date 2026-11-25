@@ -35,6 +35,18 @@ def write_file_atomic(path: str, data: bytes) -> None:
         pass
 
 
+def stable_game_id(game_or_headers) -> str:
+    """
+    Identifier of a game from its PGN headers: Event|Site||Round|White|Black.
+
+    Date is left empty on purpose: LiveChess re-exports finished rounds with
+    the current day, which would make every old game look like a new one.
+    """
+    headers = getattr(game_or_headers, "headers", game_or_headers)
+    return "|".join("" if key == "Date" else headers.get(key, "")
+                    for key in ("Event", "Site", "Date", "Round", "White", "Black"))
+
+
 def is_phantom_game(game) -> bool:
     """A 'game' without players - a fragment of a truncated PGN, not a real game."""
     white = str(game.headers.get("White", "") or "").strip()

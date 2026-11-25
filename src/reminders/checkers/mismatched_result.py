@@ -6,6 +6,7 @@ Flags games where the recorded result doesn't match the final position evaluatio
 Uses background workers to prevent UI freeze during analysis.
 """
 
+from src.helpers import stable_game_id
 from typing import List, Any, Set, Optional
 import chess
 import chess.pgn
@@ -49,14 +50,7 @@ class MismatchedResultChecker(BaseChecker):
 
     def make_game_id(self, game: Any) -> str:
         """Generate stable game identifier from PGN headers."""
-        return "|".join([
-            game.headers.get("Event", ""),
-            game.headers.get("Site", ""),
-            game.headers.get("Date", ""),
-            game.headers.get("Round", ""),
-            game.headers.get("White", ""),
-            game.headers.get("Black", ""),
-        ])
+        return stable_game_id(game)
 
     def _parse_result(self, result: str) -> int:
         """

@@ -46,19 +46,23 @@ class GameEndTracker:
     def __init__(self) -> None:
         self._known: Set[tuple] = set()
         self._primed = False
+        self._ongoing: Set[str] = set()  # ids seen without a result
 
     def new_results(self, games: Iterable, make_id) -> List:
-        """Games whose (id, result) was not seen before. The first call only primes."""
+        """Games whose (id, result) was not seen before. The first call only primes;
+        games that first appear already finished are not reported."""
         fresh = []
         for game in games:
             result = game.headers.get("Result", "*")
+            game_id = make_id(game)
             if result == "*":
+                self._ongoing.add(game_id)
                 continue
-            key = (make_id(game), result)
+            key = (game_id, result)
             if key in self._known:
                 continue
             self._known.add(key)
-            if self._primed:
+            if self._primed and game_id in self._ongoing:
                 fresh.append(game)
         self._primed = True
         return fresh

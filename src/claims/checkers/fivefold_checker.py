@@ -1,3 +1,4 @@
+from src.helpers import stable_game_id
 from math import ceil
 from typing import List, Any, Set
 from chess.pgn import Game
@@ -21,14 +22,7 @@ class FiveFoldChecker(BaseChecker):
     @staticmethod
     def make_game_id(game: Game) -> str:
         """Generate stable identifier from PGN headers only."""
-        return "|".join([
-            game.headers.get("Event", ""),
-            game.headers.get("Site", ""),
-            game.headers.get("Date", ""),
-            game.headers.get("Round", ""),
-            game.headers.get("White", ""),
-            game.headers.get("Black", ""),
-        ])
+        return stable_game_id(game)
 
     def check(self, game: Any, claims_model: Any, **kwargs) -> List[ClaimEntry]:
         """Check a single game for 5-fold repetition."""

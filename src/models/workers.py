@@ -1,4 +1,5 @@
 from __future__ import annotations
+from src.helpers import stable_game_id
 
 import logging
 import os.path
@@ -43,14 +44,7 @@ class GameAnalysisItem:
         self.game = game
         self.declared_result = declared_result
         self.final_fen = final_fen
-        self.game_id = "|".join([
-            game.headers.get("Event", ""),
-            game.headers.get("Site", ""),
-            game.headers.get("Date", ""),
-            game.headers.get("Round", ""),
-            game.headers.get("White", ""),
-            game.headers.get("Black", ""),
-        ])
+        self.game_id = stable_game_id(game)
         # A corrected result (or final position) is a new item to analyse
         self.queue_key = analysis_key(self.game_id, declared_result, final_fen)
 
@@ -185,14 +179,7 @@ class EngineWorker(QThread):
                         pv_str = result[1] if len(result) > 1 else ""
                         
                         # Mark game as analyzed to prevent re-queuing on restart
-                        game_id = "|".join([
-                            analysis_item.game.headers.get("Event", ""),
-                            analysis_item.game.headers.get("Site", ""),
-                            analysis_item.game.headers.get("Date", ""),
-                            analysis_item.game.headers.get("Round", ""),
-                            analysis_item.game.headers.get("White", ""),
-                            analysis_item.game.headers.get("Black", ""),
-                        ])
+                        game_id = stable_game_id(analysis_item.game)
                         self.game_queue.add_already_analyzed(game_id)
                         
                         # Log the analysis result (include board number for better identification)
@@ -373,14 +360,7 @@ class EngineWorker(QThread):
     
     def _make_game_id(self, game: Any) -> str:
         """Generate stable game identifier from PGN headers."""
-        return "|".join([
-            game.headers.get("Event", ""),
-            game.headers.get("Site", ""),
-            game.headers.get("Date", ""),
-            game.headers.get("Round", ""),
-            game.headers.get("White", ""),
-            game.headers.get("Black", ""),
-        ])
+        return stable_game_id(game)
 
 
 # ---------------------------------------------------------
@@ -653,14 +633,7 @@ class Scan(QThread):
                     # Check if game is finished and not yet queued/analyzed for mismatched result
                     result = game.headers.get("Result", "*")
                     if result != "*" and result not in ("*",):
-                        game_id = "|".join([
-                            game.headers.get("Event", ""),
-                            game.headers.get("Site", ""),
-                            game.headers.get("Date", ""),
-                            game.headers.get("Round", ""),
-                            game.headers.get("White", ""),
-                            game.headers.get("Black", ""),
-                        ])
+                        game_id = stable_game_id(game)
                         
                         # Final position; result + position decide whether it is new
                         board = chess.Board()
