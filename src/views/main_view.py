@@ -34,6 +34,59 @@ from src.views.dialogs.about_dialog import AboutDialog
 from src.i18n import tr
 
 
+def _icon_font_family() -> Optional[str]:
+    from PyQt6.QtGui import QFontDatabase
+    families = QFontDatabase.families()
+    for family in ("Segoe Fluent Icons", "Segoe MDL2 Assets"):
+        if family in families:
+            return family
+    return None
+
+
+class IconButton(QPushButton):
+    """Square icon-only button (Windows icon font) with an optional corner badge."""
+
+    def __init__(self, glyph: str, fallback: str) -> None:
+        super().__init__()
+        self._family = _icon_font_family()
+        self._glyph = glyph if self._family else fallback
+        self._badge = None            # (colour, text)
+        self.setObjectName("iconButton")
+        self.setFixedSize(38, 32)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_badge(self, badge) -> None:
+        self._badge = badge
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPainter, QFont, QPen
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        font = QFont(self._family) if self._family else QFont()
+        font.setPixelSize(17 if self._family else 16)
+        painter.setFont(font)
+        painter.setPen(QColor("#1496e8" if self.isEnabled() else "#9cc9ec"))
+        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._glyph)
+        if self._badge:
+            colour, text = self._badge
+            size = 14.0
+            rect = QRectF(self.width() - size - 1, 1, size, size)
+            painter.setPen(QPen(QColor("#ffffff"), 1.5))
+            painter.setBrush(QColor(colour))
+            painter.drawEllipse(rect)
+            if text:
+                small = QFont("Segoe UI")
+                small.setPixelSize(9)
+                small.setBold(True)
+                painter.setFont(small)
+                painter.setPen(QColor("#ffffff"))
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.end()
+
+
 def sources_warning() -> None:
     """Display a warning dialog when no valid PGN sources are found."""
     from PyQt6.QtWidgets import QMessageBox
@@ -438,12 +491,9 @@ class ChessClaimView(QMainWindow):
 
     def create_status_bar(self) -> None:
         """Create and configure the status bar."""
-        sources_button = QPushButton(tr("Add Sources"))
-        sources_button.setObjectName("sources")
+        sources_button = IconButton("", "+")
+        sources_button.setToolTip(tr("Sources (add, edit, remove)"))
         sources_button.clicked.connect(self.controller.on_sources_button_clicked)
-        
-        # Set fixed width for Add Sources button (based on Clear Resolved text length)
-        sources_button.setMinimumWidth(125)
 
         self.source_image.setObjectName("source-image")
         self.download_image.setObjectName("download-image")
@@ -459,8 +509,7 @@ class ChessClaimView(QMainWindow):
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(10)
         
-        # Add sources button on the far left side (fixed width)
-        sources_button.setMinimumWidth(125)
+        # Sources: edit them / connect all saved ones in one click
         status_layout.addWidget(sources_button)
         status_layout.addWidget(self._create_connect_all_button())
         
@@ -552,57 +601,29 @@ class ChessClaimView(QMainWindow):
         """Refresh the claims table (alias for resize_columns)."""
         self.claims_table_widget.refresh_table()
 
-    # (background, text colour, text) of the pill on the "Connect all" button
-    CONNECT_PILL = {
-        "idle": ("#eef1f4", "#6b7785", "{tr_idle}"),
-        "checking": ("#fff4d6", "#9a6700", "{tr_checking}"),
-        "ok": ("#e3f4e6", "#1e7b34", "\u2713 {ok}/{total}"),
-        "partial": ("#fde7e7", "#b42318", "! {ok}/{total}"),
-        "error": ("#fde7e7", "#b42318", "\u2717 0/{total}"),
+    # (badge colour, badge text) of the "Connect all" icon; None = no badge
+    CONNECT_BADGE = {
+        "idle": None,
+        "checking": ("#e0a100", ""),
+        "ok": ("#2e9e47", "\u2713"),
+        "partial": ("#d93025", "{failed}"),
+        "error": ("#d93025", "!"),
     }
 
     def _create_connect_all_button(self) -> QPushButton:
         """One click: check every saved source and confirm them (no dialog)."""
-        from PyQt6.QtWidgets import QHBoxLayout as _HBox
-        button = QPushButton()
-        button.setObjectName("connectAll")
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button = IconButton("\ue71b", "\u26a1")
         button.clicked.connect(self.controller.on_connect_all_clicked)
-        text = QLabel("\u26a1 " + tr("Connect all"))
-        text.setObjectName("connectAllText")
-        pill = QLabel()
-        pill.setObjectName("connectAllPill")
-        pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        for label in (text, pill):
-            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout = _HBox(button)
-        layout.setContentsMargins(12, 3, 4, 3)
-        layout.setSpacing(8)
-        layout.addWidget(text)
-        layout.addStretch()
-        layout.addWidget(pill)
-        pill.setFixedHeight(18)
         self.connect_all_button = button
-        self.connect_all_text = text
-        self.connect_all_pill = pill
         self.set_connect_all_state("idle")
         return button
 
     def set_connect_all_state(self, state: str, ok: int = 0, total: int = 0,
                               failed: Optional[List[str]] = None) -> None:
-        background, colour, text = self.CONNECT_PILL[state]
-        text = text.format(ok=ok, total=total, tr_idle=tr("not connected"),
-                           tr_checking=tr("checking\u2026"))
-        self.connect_all_pill.setText(text)
-        self.connect_all_pill.setStyleSheet(
-            f"background-color: {background}; color: {colour}; border-radius: 9px;"
-            f"padding: 0px 8px; font-size: 11px; font-weight: 700;")
-        for label in (self.connect_all_text, self.connect_all_pill):
-            label.ensurePolished()   # size with the stylesheet just set
-        width = (self.connect_all_text.sizeHint().width()
-                 + self.connect_all_pill.sizeHint().width() + 48)
-        # never shrinks, so the status bar does not jump between states
-        self.connect_all_button.setMinimumWidth(max(width, self.connect_all_button.minimumWidth()))
+        badge = self.CONNECT_BADGE[state]
+        if badge:
+            badge = (badge[0], badge[1].format(failed=total - ok))
+        self.connect_all_button.set_badge(badge)
         tips = {
             "idle": tr("Check and confirm all saved sources in one click"),
             "checking": tr("Checking sources\u2026"),

@@ -151,32 +151,23 @@ QPushButton#sources:pressed {
     border: 1px solid #0f86cf;
 }
 
-/* Connect all sources button (+ status pill inside) */
-QPushButton#connectAll {
-    background-color: #1496e8;
+/* Icon-only buttons (sources, connect all) */
+QPushButton#iconButton {
+    background-color: #ffffff;
     border: 1px solid #1496e8;
     border-radius: 4px;
-    min-height: 28px;
 }
 
-QPushButton#connectAll:hover {
-    background-color: #0f86cf;
+QPushButton#iconButton:hover {
+    background-color: #f4f9ff;
 }
 
-QPushButton#connectAll:pressed {
-    background-color: #0b74b5;
+QPushButton#iconButton:pressed {
+    background-color: #e6f2ff;
 }
 
-QPushButton#connectAll:disabled {
-    background-color: #7cc0ef;
-    border: 1px solid #7cc0ef;
-}
-
-QLabel#connectAllText {
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 600;
-    background: transparent;
+QPushButton#iconButton:disabled {
+    border: 1px solid #9cc9ec;
 }
 
 /* Clear Resolved button (green border) */
