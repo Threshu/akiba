@@ -15,6 +15,7 @@ import chess
 
 from src.helpers import get_appdata_path, Status, get_board_number, write_file_atomic, is_phantom_game
 from src.claims.manager import ClaimsManager
+from src.models.result_settle import ResultSettler
 from src.models.events import get_players, ClaimType, ClaimEntry
 from src.models.download import check_download, download_pgn, fetch_pgn
 from src.models.livechesscloud import (
@@ -737,6 +738,8 @@ class MakePgn(Thread):
 
         app_path = get_appdata_path()
         self.filename = os.path.join(app_path, "games.pgn")
+        # kings being set after the game must not flash a wrong result
+        self.result_settler = ResultSettler()
 
     def run(self) -> None:
         if not self.stop_event:
@@ -771,7 +774,7 @@ class MakePgn(Thread):
         try:
             # Swap in atomically: readers without the lock (GUI reload, board
             # viewer) never see a half-written games.pgn
-            write_file_atomic(self.filename, data)
+            write_file_atomic(self.filename, self.result_settler.filter(data))
         except OSError as exc:
             logger.warning("cannot write %s: %s", self.filename, exc)
         finally:
