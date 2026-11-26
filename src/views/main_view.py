@@ -462,6 +462,7 @@ class ChessClaimView(QMainWindow):
         # Add sources button on the far left side (fixed width)
         sources_button.setMinimumWidth(125)
         status_layout.addWidget(sources_button)
+        status_layout.addWidget(self._create_connect_all_button())
         
         # Create center container for Source and Scan labels with spacing from sources
         center_container = QWidget()
@@ -550,6 +551,70 @@ class ChessClaimView(QMainWindow):
     def refresh_table(self) -> None:
         """Refresh the claims table (alias for resize_columns)."""
         self.claims_table_widget.refresh_table()
+
+    # (background, text colour, text) of the pill on the "Connect all" button
+    CONNECT_PILL = {
+        "idle": ("#eef1f4", "#6b7785", "{tr_idle}"),
+        "checking": ("#fff4d6", "#9a6700", "{tr_checking}"),
+        "ok": ("#e3f4e6", "#1e7b34", "\u2713 {ok}/{total}"),
+        "partial": ("#fde7e7", "#b42318", "! {ok}/{total}"),
+        "error": ("#fde7e7", "#b42318", "\u2717 0/{total}"),
+    }
+
+    def _create_connect_all_button(self) -> QPushButton:
+        """One click: check every saved source and confirm them (no dialog)."""
+        from PyQt6.QtWidgets import QHBoxLayout as _HBox
+        button = QPushButton()
+        button.setObjectName("connectAll")
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.clicked.connect(self.controller.on_connect_all_clicked)
+        text = QLabel("\u26a1 " + tr("Connect all"))
+        text.setObjectName("connectAllText")
+        pill = QLabel()
+        pill.setObjectName("connectAllPill")
+        pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        for label in (text, pill):
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout = _HBox(button)
+        layout.setContentsMargins(12, 3, 4, 3)
+        layout.setSpacing(8)
+        layout.addWidget(text)
+        layout.addStretch()
+        layout.addWidget(pill)
+        pill.setFixedHeight(18)
+        self.connect_all_button = button
+        self.connect_all_text = text
+        self.connect_all_pill = pill
+        self.set_connect_all_state("idle")
+        return button
+
+    def set_connect_all_state(self, state: str, ok: int = 0, total: int = 0,
+                              failed: Optional[List[str]] = None) -> None:
+        background, colour, text = self.CONNECT_PILL[state]
+        text = text.format(ok=ok, total=total, tr_idle=tr("not connected"),
+                           tr_checking=tr("checking\u2026"))
+        self.connect_all_pill.setText(text)
+        self.connect_all_pill.setStyleSheet(
+            f"background-color: {background}; color: {colour}; border-radius: 9px;"
+            f"padding: 0px 8px; font-size: 11px; font-weight: 700;")
+        for label in (self.connect_all_text, self.connect_all_pill):
+            label.ensurePolished()   # size with the stylesheet just set
+        width = (self.connect_all_text.sizeHint().width()
+                 + self.connect_all_pill.sizeHint().width() + 48)
+        # never shrinks, so the status bar does not jump between states
+        self.connect_all_button.setMinimumWidth(max(width, self.connect_all_button.minimumWidth()))
+        tips = {
+            "idle": tr("Check and confirm all saved sources in one click"),
+            "checking": tr("Checking sources\u2026"),
+            "ok": tr("All sources connected and confirmed ({ok}/{total})"),
+            "partial": tr("Only {ok} of {total} sources work - click to retry"),
+            "error": tr("No source works - check the connection or the sources"),
+        }
+        tip = tips[state].format(ok=ok, total=total)
+        if failed:
+            tip += "\n" + "\n".join("\u2717 " + name for name in failed)
+        self.connect_all_button.setToolTip(tip)
+        self.connect_all_button.setEnabled(state != "checking")
 
     def set_sources_status(self, status: Status, valid_sources: Optional[List] = None) -> None:
         """

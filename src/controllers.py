@@ -7,7 +7,7 @@ from datetime import datetime
 from threading import Event, Thread, Lock
 from typing import List, Dict
 
-from PyQt6.QtCore import Qt, QThreadPool
+from PyQt6.QtCore import Qt, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
 from src.helpers import get_appdata_path, Status, get_engine_path, is_phantom_game
@@ -1162,10 +1162,14 @@ class ChessClaimController(QApplication):
         """
         self.view.claims_table_widget.clear_selected_rows()
 
+    def _create_sources_dialog(self) -> None:
+        self.sources_dialog = SourceDialogController()
+        self.sources_dialog.view.accepted.connect(self.update_status_bar_sources)
+        self.sources_dialog.view.accepted.connect(self._update_connect_all_state)
+
     def on_sources_button_clicked(self) -> None:
         if not self.sources_dialog:
-            self.sources_dialog = SourceDialogController()
-            self.sources_dialog.view.accepted.connect(self.update_status_bar_sources)
+            self._create_sources_dialog()
             self.sources_dialog.do_start()
             return
 
@@ -1173,6 +1177,70 @@ class ChessClaimController(QApplication):
             self.on_stop_button_clicked(blocking=False)
 
         self.sources_dialog.do_resume()
+
+    # "Connect all": what Apply + OK in the sources dialog do, without the dialog
+    connect_all_finished = pyqtSignal()
+
+    def on_connect_all_clicked(self) -> None:
+        from threading import Thread
+        from src.i18n import tr
+        if self.scan_worker and self.scan_worker.isRunning():
+            self.view.connect_all_button.setToolTip(tr("Stop the scan to reconnect the sources"))
+            from PyQt6.QtWidgets import QToolTip
+            from PyQt6.QtGui import QCursor
+            QToolTip.showText(QCursor.pos(), tr("Stop the scan to reconnect the sources"))
+            return
+        if not self.sources_dialog:
+            self._create_sources_dialog()
+            self.sources_dialog.view.set_gui()
+            self.sources_dialog.restore()
+        dialog = self.sources_dialog
+        if not any(hbox.get_value() for hbox in dialog.view.sources):
+            self.on_sources_button_clicked()   # nothing saved yet: open the dialog
+            return
+        if not getattr(self, "_connect_all_hooked", False):
+            self.connect_all_finished.connect(self._on_connect_all_finished)
+            self._connect_all_hooked = True
+        for hbox in dialog.view.sources:
+            hbox.last_status = None
+        self.view.set_connect_all_state("checking")
+
+        def work():
+            try:
+                dialog._apply_thread()
+            except Exception:
+                logger.exception("connect all failed")
+            self.connect_all_finished.emit()
+        Thread(target=work, daemon=True).start()
+
+    def _on_connect_all_finished(self) -> None:
+        dialog = self.sources_dialog
+        if dialog.filepaths:
+            dialog.on_ok_button_clicked()   # save, start LiveChess polling, confirm
+        else:
+            self.update_status_bar_sources()
+        self._update_connect_all_state()
+        logger.info("connect all: %d of %d sources work",
+                    *self._connect_all_counts()[:2])
+
+    def _connect_all_counts(self):
+        sources = [h for h in self.sources_dialog.view.sources if h.get_value()]
+        ok = [h for h in sources if getattr(h, "last_status", None) == Status.OK]
+        failed = [h.get_name() or h.get_value() for h in sources if h not in ok]
+        return len(ok), len(sources), failed
+
+    def _update_connect_all_state(self) -> None:
+        ok, total, failed = self._connect_all_counts()
+        if total and ok == total:
+            state = "ok"
+        elif ok:
+            state = "partial"
+        elif total and any(getattr(h, "last_status", None) is not None
+                           for h in self.sources_dialog.view.sources):
+            state = "error"
+        else:
+            state = "idle"
+        self.view.set_connect_all_state(state, ok, total, failed)
 
     def on_scan_button_clicked(self) -> None:
         # A stop still running in the background must finish first

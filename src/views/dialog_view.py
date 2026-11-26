@@ -291,6 +291,7 @@ class SourceHBox(QWidget):
         Args:
             status (Status): Validation result
         """
+        self.last_status = status
         if status == Status.OK:
             self.status_image.setPixmap(
                 self.ok_pixmap.scaled(
