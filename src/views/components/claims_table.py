@@ -171,6 +171,10 @@ class ClaimsTable(QWidget):
           * Delete: remove the selected rows.
         """
         from PyQt6.QtCore import QEvent
+        try:
+            self.table.viewport()
+        except RuntimeError:
+            return False   # table already destroyed (window closing)
         if obj is self.table and event.type() == QEvent.Type.KeyPress:
             key = event.key()
             rows = self.get_selected_rows()
