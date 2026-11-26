@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.helpers import stable_game_id, read_pgn_text
+from src.helpers import stable_game_id, read_pgn_text, _pgn_file_lock
 
 import io
 import logging
@@ -758,7 +758,8 @@ class MakePgn(Thread):
         data = b""
         for filepath in self.filepaths:
             try:
-                with open(filepath, "rb") as in_file:
+                # downloads replace these files: read them in turn with the writers
+                with _pgn_file_lock, open(filepath, "rb") as in_file:
                     content = in_file.read().strip()
                     if not content:
                         continue
