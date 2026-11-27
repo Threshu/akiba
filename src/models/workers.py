@@ -400,6 +400,8 @@ class DownloadGames(QThread):
     status_signal = pyqtSignal(Status)
     # (url, reason) - a source has been failing continuously for ERROR_GRACE seconds
     source_failed_signal = pyqtSignal(str, str)
+    # every source tried once: the files on disk are from this session now
+    first_pass_done = pyqtSignal()
     INTERVAL = 2
     # Live servers rewrite their PGN files, so single failed downloads are
     # normal; only a source that keeps failing this long is reported.
@@ -418,8 +420,12 @@ class DownloadGames(QThread):
         if not self.stop_event:
             return self.download_pgns()
 
+        first = True
         while not self.stop_event.is_set():
             self.download_pgns()
+            if first:
+                first = False
+                self.first_pass_done.emit()
             self.stop_event.wait(self.INTERVAL)
 
     def download_pgns(self):

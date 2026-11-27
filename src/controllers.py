@@ -1252,6 +1252,8 @@ class ChessClaimController(QApplication):
 
         if self.scan_worker and self.scan_worker.isRunning():
             return
+        if getattr(self, "_scan_start_pending", False):
+            return   # already starting (waiting for the first download)
 
         # Clear shown_reminders for fresh scan - this allows reminders to reappear
         self.mismatched_result_shown.clear()
@@ -1271,14 +1273,42 @@ class ChessClaimController(QApplication):
 
         download_list = self.sources_dialog.get_download_list()
         if download_list:
+            # The downloaded files on disk may be from an earlier round: scan
+            # only after they have been fetched again (or after a short wait
+            # when the network is down)
             self.start_download_worker(download_list)
+            self._scan_start_pending = True
+            self.download_worker.first_pass_done.connect(self._start_pgn_scan)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(self.FIRST_DOWNLOAD_WAIT_SECONDS * 1000, self._start_pgn_scan)
+            return
 
+        self._scan_start_pending = True
+        self._start_pgn_scan()
+
+    FIRST_DOWNLOAD_WAIT_SECONDS = 20
+
+    def _start_pgn_scan(self) -> None:
+        if not getattr(self, "_scan_start_pending", False):
+            return   # already started (download finished or the wait ran out)
+        self._scan_start_pending = False
+        if self.stop_event.is_set() or (self.scan_worker and self.scan_worker.isRunning()):
+            return
         games_pgn_mutex = Lock()
         self.start_make_png_worker(games_pgn_mutex)
         self.start_scan_worker(games_pgn_mutex)
 
     def on_stop_button_clicked(self, blocking: bool = True) -> None:
         """Stop scanning. blocking=False returns at once and finishes in the background."""
+        if getattr(self, "_scan_start_pending", False):
+            # still waiting for the first download: just call it off
+            self._scan_start_pending = False
+            self.stop_event.set()
+            if self.download_worker:
+                self.download_worker.wait(10000)
+            self.stop_event.clear()
+            self.view.change_scan_button_text(Status.STOP)
+            return
         if not self.scan_worker or not self.scan_worker.isRunning():
             return
         if self.stop_worker is not None and self.stop_worker.isRunning():
